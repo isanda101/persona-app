@@ -250,7 +250,7 @@ export default function PersonaFeed() {
     setSavedIds(nextSaved.map((c) => c.id));
 
     // Small toast instead of alert
-    setToast(exists ? "Already saved" : "Saved");
+    setToast(exists ? "Already in collection" : "Collected");
     window.setTimeout(() => setToast(null), 900);
     setJustSaved(true);
     window.setTimeout(() => setJustSaved(false), 900);
