@@ -41,7 +41,7 @@ export default function TastePage() {
     if (raw) setSelected(JSON.parse(raw));
   }, []);
 
-  const toggle = (item: string) => {
+  const toggleTaste = (item: string) => {
     setSelected((prev) =>
       prev.includes(item) ? prev.filter((x) => x !== item) : [...prev, item]
     );
@@ -124,6 +124,23 @@ export default function TastePage() {
           ) : null}
         </div>
 
+        {selected.length ? (
+          <div className="mb-4">
+            <div className="text-sm text-gray-500 mb-2">Selected</div>
+            <div className="flex flex-wrap gap-2">
+              {selected.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => toggleTaste(t)}
+                  className="px-3 py-1 rounded-full bg-black text-white text-sm"
+                >
+                  {t} ✕
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="mt-6 space-y-6">
           {OPTIONS.map((section) => {
             const filteredItems = normalizedQuery
@@ -145,7 +162,7 @@ export default function TastePage() {
                     return (
                       <button
                         key={item}
-                        onClick={() => toggle(item)}
+                        onClick={() => toggleTaste(item)}
                         className={`px-3 py-2 rounded-full text-sm border ${
                           on
                             ? "bg-black text-white border-black"
@@ -178,7 +195,7 @@ export default function TastePage() {
                     return (
                       <button
                         key={item}
-                        onClick={() => toggle(item)}
+                        onClick={() => toggleTaste(item)}
                         className={`px-3 py-2 rounded-full text-sm border ${
                           on
                             ? "bg-black text-white border-black"
@@ -215,7 +232,7 @@ export default function TastePage() {
               suggested.map((item) => (
                 <button
                   key={item}
-                  onClick={() => toggle(item)}
+                  onClick={() => toggleTaste(item)}
                   className="px-3 py-2 rounded-full text-sm border bg-white text-black border-gray-300"
                 >
                   {item}
