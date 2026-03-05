@@ -21,6 +21,7 @@ type StyleDNA = {
 type Card = {
   id: string;
   topic: string;
+  image_query: string;
   image_url: string;
   caption_short: string;
   caption_long: string;
@@ -45,7 +46,7 @@ async function fetchUnsplashImage(query: string) {
     "https://api.unsplash.com/search/photos?" +
     new URLSearchParams({
       query: q,
-      per_page: "1",
+      per_page: "12",
       orientation: "portrait",
       content_filter: "high",
     }).toString();
@@ -59,12 +60,32 @@ async function fetchUnsplashImage(query: string) {
 
     if (!res.ok) return null;
     const data = await res.json();
-    const first = data?.results?.[0];
-    if (!first?.urls?.regular) return null;
+    const results = Array.isArray(data?.results) ? data.results : [];
+    if (!results.length) return null;
+
+    const keywords = Array.from(
+      new Set(
+        q
+          .toLowerCase()
+          .split(/\s+/)
+          .map((k) => k.trim())
+          .filter((k) => k.length >= 4),
+      ),
+    );
+
+    const scored = results.map((item: any, index: number) => {
+      const text = `${String(item?.alt_description || "")} ${String(item?.description || "")}`.toLowerCase();
+      const score = keywords.reduce((acc, kw) => (text.includes(kw) ? acc + 1 : acc), 0);
+      return { item, score, index };
+    });
+
+    const best = scored.sort((a, b) => b.score - a.score || a.index - b.index)[0];
+    const picked = best?.score > 0 ? best.item : results[0];
+    if (!picked?.urls?.regular) return null;
 
     const out = {
-      image_url: first.urls.regular,
-      attribution: `Photo by ${first.user?.name || "Unknown"} on Unsplash`,
+      image_url: picked.urls.regular,
+      attribution: `Photo by ${picked.user?.name || "Unknown"} on Unsplash`,
     };
 
     imgCache.set(q.toLowerCase(), out);
@@ -97,9 +118,11 @@ function fallbackDNA(tastes: string[], saved: SavedSignal[]): StyleDNA {
 }
 
 function fallbackCard(topic: string, id: string): Card {
+  const defaultQuery = `${topic} editorial photo`;
   return {
     id,
     topic,
+    image_query: defaultQuery,
     image_url: img(topic),
     caption_short: `${topic}: a clean, quick editorial note—why it matters right now.`,
     caption_long: `Expanded take on ${topic}. (Fallback text — AI unavailable.)`,
@@ -113,21 +136,18 @@ function safeArrayStrings(v: any, max = 20): string[] {
   return v.map((x) => String(x)).filter(Boolean).slice(0, max);
 }
 
-function buildUnsplashQuery(card: Card, tastes: string[]) {
-  const base =
-    card.topic ||
-    card.tags?.slice(0, 2).join(" ") ||
-    tastes?.[0] ||
-    "design";
-  const lower = base.toLowerCase();
+function deriveImageQuery(topic: string, tags: string[]) {
+  const tagText = tags.join(" ").toLowerCase();
+  const topicText = topic.toLowerCase();
+  const has = (value: string) => tagText.includes(value) || topicText.includes(value);
 
-  if (lower.includes("rolex")) return "rolex watch close-up";
-  if (lower.includes("porsche")) return "porsche sports car";
-  if (lower.includes("eames")) return "eames lounge chair";
-  if (lower.includes("levi's") || lower.includes("levis")) return "vintage levis denim";
-  if (lower.includes("basquiat")) return "basquiat painting";
+  if (has("gucci")) return "gucci sneakers fashion";
+  if (has("rolex")) return "rolex gmt watch close up";
+  if (has("porsche")) return "porsche 911 sports car";
+  if (has("eames")) return "eames lounge chair interior";
+  if (has("levi's") || has("levis") || has("denim")) return "vintage levis denim jeans";
 
-  return base;
+  return `${(tags || []).slice(0, 3).join(" ")} editorial photo`.trim();
 }
 
 export async function POST(req: Request) {
@@ -249,6 +269,10 @@ JSON ONLY.`;
             return {
               id: `raw-${i + 1}`,
               topic,
+              image_query: deriveImageQuery(
+                topic,
+                safeArrayStrings(c.tags, 12).length ? safeArrayStrings(c.tags, 12) : [topic, "Style", "Culture"],
+              ),
               image_url: img(topic),
               caption_short: String(c.caption_short || `${topic}: editorial note.`).slice(0, 220),
               caption_long: String(c.caption_long || `Expanded take on ${topic}.`),
@@ -296,13 +320,16 @@ JSON ONLY.`;
 
     const normalizedCards: Card[] = cards.slice(0, 12).map((card, i) => {
       const topic = String(card.tags?.[0] || tastes[(i + cursor) % tastes.length] || "Style");
+      const tags =
+        safeArrayStrings(card.tags, 12).length ? safeArrayStrings(card.tags, 12) : [topic, "Style", "Culture"];
       return {
         id: `${cursor}-${i + 1}`,
         topic: String(card.topic || topic),
+        image_query: String(card.image_query || deriveImageQuery(String(card.topic || topic), tags)),
         image_url: String(card.image_url || img(topic)),
         caption_short: String(card.caption_short || `${topic}: editorial note.`).slice(0, 220),
         caption_long: String(card.caption_long || `Expanded take on ${topic}.`),
-        tags: safeArrayStrings(card.tags, 12).length ? safeArrayStrings(card.tags, 12) : [topic, "Style", "Culture"],
+        tags,
         attribution: card.attribution || "Picsum (placeholder)",
       };
     });
@@ -365,7 +392,7 @@ JSON ONLY.`;
 
     await Promise.all(
       normalizedCards.slice(0, 8).map(async (card) => {
-        const query = buildUnsplashQuery(card, tastes);
+        const query = card.image_query || deriveImageQuery(card.topic, card.tags);
         const image = await fetchUnsplashImage(query);
         if (!image) return;
         card.image_url = image.image_url;
