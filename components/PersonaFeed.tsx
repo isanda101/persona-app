@@ -44,7 +44,7 @@ export default function PersonaFeed() {
   const [index, setIndex] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [readerOpen, setReaderOpen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [dna, setDna] = useState<StyleDNA | null>(null);
   const [seenTopics, setSeenTopics] = useState<string[]>([]);
   const [seenTags, setSeenTags] = useState<string[]>([]);
@@ -148,7 +148,7 @@ export default function PersonaFeed() {
         setCards(newCards);
         addSeenFromCards(newCards);
         setIndex(0);
-        setReaderOpen(false);
+        setExpanded(false);
         cursorRef.current = nextCursor;
         setCursor(nextCursor);
       } else {
@@ -187,6 +187,7 @@ export default function PersonaFeed() {
     loadMoreIfNeeded(next);
     if (next >= cards.length) return;
     setIndex(next);
+    setExpanded(false);
   }
 
   useEffect(() => {
@@ -337,6 +338,7 @@ export default function PersonaFeed() {
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={0.2}
             onDragEnd={(_, info) => {
+              if (expanded) return;
               if (info.offset.y < -100) goTo(index + 1);
               if (info.offset.y > 100) goTo(index - 1);
             }}
@@ -347,7 +349,7 @@ export default function PersonaFeed() {
           >
             <div className="h-full flex flex-col justify-center px-4">
               <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh]">
-                <div className="relative w-full h-2/3 bg-gray-100">
+                <div className={`relative w-full bg-gray-100 ${expanded ? "h-1/2" : "h-2/3"}`}>
                   <img
                     src={active.image_url}
                     className="object-cover w-full h-full"
@@ -356,7 +358,7 @@ export default function PersonaFeed() {
                   <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
                 </div>
 
-                <div className="p-4 h-1/3">
+                <div className={`p-4 ${expanded ? "h-1/2" : "h-1/3"}`}>
                   <div className="text-xs text-gray-500">
                     {active.tags.slice(0, 5).join(" • ")}
                   </div>
@@ -364,9 +366,26 @@ export default function PersonaFeed() {
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
 
-                  <button onClick={() => setReaderOpen(true)} className="mt-2 text-sm underline">
-                    Read more
-                  </button>
+                  {!expanded ? (
+                    <button onClick={() => setExpanded(true)} className="mt-2 text-sm underline">
+                      Read more
+                    </button>
+                  ) : (
+                    <div className="mt-3">
+                      <button
+                        onClick={() => setExpanded(false)}
+                        className="text-sm underline text-gray-700"
+                      >
+                        Show less
+                      </button>
+                      <div
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="mt-2 text-sm text-gray-700 max-h-[30vh] overflow-y-auto pr-1 leading-relaxed"
+                      >
+                        {active.caption_long}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-4 flex gap-2">
                     <button
@@ -401,31 +420,6 @@ export default function PersonaFeed() {
           </motion.div>
         </AnimatePresence>
       </div>
-
-      {readerOpen && (
-        <div className="fixed inset-0 z-50 bg-white flex flex-col">
-          <div className="flex justify-between items-center px-4 py-3 border-b">
-            <div className="text-sm text-gray-500">Article</div>
-            <button
-              onClick={() => setReaderOpen(false)}
-              className="text-sm underline"
-            >
-              Close
-            </button>
-          </div>
-
-          <div className="p-4 overflow-y-auto text-gray-800 leading-relaxed">
-            <div className="max-w-xl mx-auto">
-              <h2 className="text-lg font-semibold mb-3">
-                {active.caption_short}
-              </h2>
-              <p className="text-sm whitespace-pre-line">
-                {active.caption_long}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
