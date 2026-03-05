@@ -28,6 +28,7 @@ type Card = {
   tags: string[];
   attribution?: string;
 };
+type Scored = { score: number; index: number; item: any };
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
@@ -73,13 +74,14 @@ async function fetchUnsplashImage(query: string) {
       ),
     );
 
-    const scored = results.map((item: any, index: number) => {
+    const scored: Scored[] = results.map((item: any, index: number) => {
       const text = `${String(item?.alt_description || "")} ${String(item?.description || "")}`.toLowerCase();
       const score = keywords.reduce((acc, kw) => (text.includes(kw) ? acc + 1 : acc), 0);
       return { item, score, index };
     });
 
-    const best = scored.sort((a, b) => b.score - a.score || a.index - b.index)[0];
+    const best = scored
+      .sort((a: Scored, b: Scored) => (b.score - a.score) || (a.index - b.index))[0];
     const picked = best?.score > 0 ? best.item : results[0];
     if (!picked?.urls?.regular) return null;
 
