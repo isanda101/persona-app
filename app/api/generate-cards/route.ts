@@ -28,6 +28,50 @@ type Card = {
 };
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
+const imgCache = new Map<string, { image_url: string; attribution?: string }>();
+
+async function fetchUnsplashImage(query: string) {
+  if (!UNSPLASH_ACCESS_KEY) return null;
+
+  const q = query.trim();
+  if (!q) return null;
+
+  const cached = imgCache.get(q.toLowerCase());
+  if (cached) return cached;
+
+  const url =
+    "https://api.unsplash.com/search/photos?" +
+    new URLSearchParams({
+      query: q,
+      per_page: "1",
+      orientation: "portrait",
+      content_filter: "high",
+    }).toString();
+
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
+      // prevent next from caching API fetches unexpectedly
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+    const data = await res.json();
+    const first = data?.results?.[0];
+    if (!first?.urls?.regular) return null;
+
+    const out = {
+      image_url: first.urls.regular,
+      attribution: `Photo by ${first.user?.name || "Unknown"} on Unsplash`,
+    };
+
+    imgCache.set(q.toLowerCase(), out);
+    return out;
+  } catch {
+    return null;
+  }
+}
 
 function img(topic: string) {
   return `https://picsum.photos/seed/${encodeURIComponent(topic)}/1200/800`;
@@ -292,6 +336,16 @@ JSON ONLY.`;
         ).length;
       }
     }
+
+    await Promise.all(
+      normalizedCards.slice(0, 8).map(async (card) => {
+        const query = card.tags?.slice(0, 2).join(" ") || tastes?.[0] || "style";
+        const image = await fetchUnsplashImage(query);
+        if (!image) return;
+        card.image_url = image.image_url;
+        card.attribution = image.attribution;
+      }),
+    );
 
     // NEVER return empty cards
     if (!normalizedCards.length) {
