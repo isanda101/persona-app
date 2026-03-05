@@ -40,6 +40,7 @@ function writeJSON(key: string, value: unknown) {
 
 export default function PersonaFeed() {
   const [cards, setCards] = useState<Card[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -191,10 +192,18 @@ export default function PersonaFeed() {
 
   useEffect(() => {
     // Initial load: generate feed using taste + existing saves
-    const savedAll = readJSON<Card[]>("persona:saved", []);
-    setSavedIds(savedAll.map((c) => c.id));
-    fetchBatch(0, "replace", savedAll).catch(() => {
-      // If something fails, keep the loading state; API route already falls back.
+    async function loadInitial() {
+      setIsLoading(true);
+      const savedAll = readJSON<Card[]>("persona:saved", []);
+      setSavedIds(savedAll.map((c) => c.id));
+      try {
+        await fetchBatch(0, "replace", savedAll);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadInitial().catch(() => {
+      // Error state is handled in fetchBatch.
     });
 
     // Load cached DNA quickly (optional)
@@ -204,9 +213,14 @@ export default function PersonaFeed() {
   }, []);
 
   async function retryLoad() {
+    setIsLoading(true);
     const savedAll = readJSON<Card[]>("persona:saved", []);
     setSavedIds(savedAll.map((c) => c.id));
-    await fetchBatch(0, "replace", savedAll);
+    try {
+      await fetchBatch(0, "replace", savedAll);
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   async function saveCard(card: Card) {
@@ -248,6 +262,28 @@ export default function PersonaFeed() {
         </div>
       );
     }
+
+    if (isLoading) {
+      return (
+        <div className="h-screen w-screen bg-white flex items-center justify-center px-4">
+          <div className="w-full max-w-sm animate-pulse">
+            <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh] border">
+              <div className="w-full h-2/3 bg-gray-200" />
+              <div className="p-4 h-1/3">
+                <div className="h-3 bg-gray-200 rounded w-4/5" />
+                <div className="mt-3 h-4 bg-gray-200 rounded w-full" />
+                <div className="mt-2 h-4 bg-gray-200 rounded w-3/4" />
+                <div className="mt-5 flex gap-2">
+                  <div className="h-9 rounded bg-gray-200 w-28" />
+                  <div className="h-9 rounded bg-gray-200 w-20" />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="h-screen flex items-center justify-center text-gray-500">
         Loading Persona…
