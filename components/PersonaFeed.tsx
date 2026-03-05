@@ -52,6 +52,9 @@ export default function PersonaFeed() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [likes, setLikes] = useState<Record<string, boolean>>({});
+  const [isLiked, setIsLiked] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
   const cursorRef = useRef(0);
@@ -79,6 +82,19 @@ export default function PersonaFeed() {
 
     return "From your adjacent tastes";
   }, [active, dna]);
+
+  useEffect(() => {
+    const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
+    setLikes(storedLikes);
+  }, []);
+
+  useEffect(() => {
+    if (!active?.id) {
+      setIsLiked(false);
+      return;
+    }
+    setIsLiked(Boolean(likes[active.id]));
+  }, [active, likes]);
 
   useEffect(() => {
     cardsRef.current = cards;
@@ -248,6 +264,48 @@ export default function PersonaFeed() {
     }
   }
 
+  function showActionToast(message: string) {
+    setActionToast(message);
+    window.setTimeout(() => setActionToast(null), 1500);
+  }
+
+  function toggleLike(card: Card) {
+    setLikes((prev) => {
+      const next = { ...prev };
+      if (next[card.id]) {
+        delete next[card.id];
+      } else {
+        next[card.id] = true;
+      }
+      writeJSON("persona:likes", next);
+      setIsLiked(Boolean(next[card.id]));
+      return next;
+    });
+  }
+
+  async function handleShare() {
+    const shareUrl = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Persona",
+          text: active.caption_short,
+          url: shareUrl,
+        });
+      } catch {
+        // Ignore cancellation/errors to keep interaction non-blocking.
+      }
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      showActionToast("Link copied");
+    } catch {
+      showActionToast("Unable to copy link");
+    }
+  }
+
   if (!cards.length) {
     if (loadError) {
       return (
@@ -366,26 +424,90 @@ export default function PersonaFeed() {
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
 
-                  {!expanded ? (
-                    <button onClick={() => setExpanded(true)} className="mt-2 text-sm underline">
-                      Read more
-                    </button>
-                  ) : (
-                    <div className="mt-3">
+                  <div className="mt-2 flex items-center justify-between">
+                    {!expanded ? (
+                      <button onClick={() => setExpanded(true)} className="text-sm underline">
+                        Read more
+                      </button>
+                    ) : (
                       <button
                         onClick={() => setExpanded(false)}
                         className="text-sm underline text-gray-700"
                       >
                         Show less
                       </button>
-                      <div
-                        onPointerDown={(e) => e.stopPropagation()}
-                        className="mt-2 text-sm text-gray-700 max-h-[30vh] overflow-y-auto pr-1 leading-relaxed"
+                    )}
+                    <div
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="flex items-center gap-3 text-gray-600"
+                    >
+                      <button
+                        onClick={() => toggleLike(active)}
+                        className="hover:text-black active:scale-95 transition"
+                        aria-label="Like"
                       >
-                        {active.caption_long}
-                      </div>
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill={isLiked ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => showActionToast("Comments coming soon")}
+                        className="hover:text-black active:scale-95 transition"
+                        aria-label="Chat"
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={handleShare}
+                        className="hover:text-black active:scale-95 transition"
+                        aria-label="Share"
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                          <path d="M16 6l-4-4-4 4" />
+                          <path d="M12 2v14" />
+                        </svg>
+                      </button>
                     </div>
-                  )}
+                  </div>
+
+                  {expanded ? (
+                    <div
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="mt-2 text-sm text-gray-700 max-h-[30vh] overflow-y-auto pr-1 leading-relaxed"
+                    >
+                      {active.caption_long}
+                    </div>
+                  ) : null}
 
                   <div className="mt-4 flex gap-2">
                     <button
@@ -407,6 +529,9 @@ export default function PersonaFeed() {
                       Next
                     </button>
                   </div>
+                  {actionToast ? (
+                    <div className="mt-2 text-xs text-gray-500">{actionToast}</div>
+                  ) : null}
                 </div>
               </div>
 
