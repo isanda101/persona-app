@@ -391,7 +391,7 @@ export default function PersonaFeed() {
 
                     <button
                       onClick={() => goTo(index + 1)}
-                      className="px-3 py-2 rounded bg-gray-100 text-sm"
+                      className="hidden md:block px-3 py-2 rounded bg-gray-100 text-sm"
                     >
                       Next
                     </button>
