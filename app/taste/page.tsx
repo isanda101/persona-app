@@ -8,6 +8,7 @@ const OPTIONS = [
   { group: "Streetwear", items: ["Supreme", "BAPE", "Stüssy", "Off-White", "Nike"] },
   { group: "Art", items: ["Basquiat", "KAWS", "Murakami"] },
   { group: "Watches", items: ["Rolex", "Omega", "Cartier"] },
+  { group: "Cars", items: ["Porsche", "Ferrari", "BMW", "Mercedes", "American Muscle"] },
   { group: "Aesthetics", items: ["Vintage", "Quiet Luxury", "Japanese Denim", "American Heritage"] },
 ];
 const INITIAL_TASTES = Array.from(new Set(OPTIONS.flatMap((section) => section.items)));
@@ -143,11 +144,15 @@ export default function TastePage() {
 
         <div className="mt-6 space-y-6">
           {OPTIONS.map((section) => {
+            const sectionItems = section.items.filter((item) => tastes.includes(item));
+            const groupMatches = normalizedQuery
+              ? section.group.toLowerCase().includes(normalizedQuery)
+              : false;
             const filteredItems = normalizedQuery
-              ? section.items
-                  .filter((item) => tastes.includes(item))
-                  .filter((item) => item.toLowerCase().includes(normalizedQuery))
-              : section.items.filter((item) => tastes.includes(item));
+              ? groupMatches
+                ? sectionItems
+                : sectionItems.filter((item) => item.toLowerCase().includes(normalizedQuery))
+              : sectionItems;
 
             if (!filteredItems.length) return null;
 
