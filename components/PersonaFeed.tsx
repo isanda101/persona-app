@@ -1,0 +1,378 @@
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+
+type Card = {
+  id: string;
+  image_url: string;
+  caption_short: string;
+  caption_long: string;
+  tags: string[];
+  attribution?: string;
+};
+
+type StyleDNA = {
+  vibe?: string;
+  keywords?: string[];
+  adjacent?: string[];
+  one_liner?: string;
+};
+
+type SavedSignal = {
+  caption_short?: string;
+  tags?: string[];
+};
+
+function readJSON<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJSON(key: string, value: unknown) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+export default function PersonaFeed() {
+  const [cards, setCards] = useState<Card[]>([]);
+  const [index, setIndex] = useState(0);
+  const [cursor, setCursor] = useState(0);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const [dna, setDna] = useState<StyleDNA | null>(null);
+  const [seenTopics, setSeenTopics] = useState<string[]>([]);
+  const [seenTags, setSeenTags] = useState<string[]>([]);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [justSaved, setJustSaved] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loadingMoreRef = useRef(false);
+  const cursorRef = useRef(0);
+  const cardsRef = useRef<Card[]>([]);
+  const seenTopicsRef = useRef<string[]>([]);
+  const seenTagsRef = useRef<string[]>([]);
+
+  const active = useMemo(() => cards[index], [cards, index]);
+  const whyThis = useMemo(() => {
+    if (!active) return "";
+    const cardTags = Array.isArray(active.tags) ? active.tags : [];
+    const tastes = readJSON<string[]>("persona:taste", []);
+    const dnaKeywords = Array.isArray(dna?.keywords) ? dna.keywords : [];
+
+    const findMatch = (pool: string[]) => {
+      const poolSet = new Set(pool.map((x) => x.toLowerCase()));
+      return cardTags.find((tag) => poolSet.has(tag.toLowerCase()));
+    };
+
+    const tasteMatch = findMatch(tastes);
+    if (tasteMatch) return `Because you picked ${tasteMatch}`;
+
+    const dnaMatch = findMatch(dnaKeywords);
+    if (dnaMatch) return `Matches your Style DNA: ${dnaMatch}`;
+
+    return "From your adjacent tastes";
+  }, [active, dna]);
+
+  useEffect(() => {
+    cardsRef.current = cards;
+  }, [cards]);
+
+  function topicOf(card: Card) {
+    const fromTag = card.tags?.[0]?.trim();
+    if (fromTag) return fromTag;
+    const firstWord = card.caption_short?.trim().split(/\s+/)[0]?.replace(/[^\w'-]/g, "");
+    return firstWord || "Style";
+  }
+
+  function addSeenFromCards(cardsBatch: Card[]) {
+    const topics = cardsBatch.map(topicOf).filter(Boolean);
+    const tags = cardsBatch
+      .flatMap((c) => (Array.isArray(c.tags) ? c.tags : []))
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const nextTopics = Array.from(new Set([...seenTopicsRef.current, ...topics])).slice(-120);
+    const nextTags = Array.from(new Set([...seenTagsRef.current, ...tags, ...topics])).slice(-250);
+
+    seenTopicsRef.current = nextTopics;
+    seenTagsRef.current = nextTags;
+    setSeenTopics(nextTopics);
+    setSeenTags(nextTags);
+  }
+
+  async function fetchBatch(nextCursor: number, mode: "replace" | "append", savedAll?: Card[]) {
+    const tastes = readJSON<string[]>("persona:taste", []);
+    const savedSource = savedAll ?? readJSON<Card[]>("persona:saved", []);
+    const saved: SavedSignal[] = Array.isArray(savedSource)
+      ? savedSource.slice(0, 30).map((c) => ({ caption_short: c.caption_short, tags: c.tags }))
+      : [];
+    const avoid_topics = seenTopics.slice(-80);
+    const savedTags = savedSource
+      .flatMap((c) => (Array.isArray(c.tags) ? c.tags : []))
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(-80);
+    const avoid_tags = Array.from(new Set([...seenTagsRef.current.slice(-160), ...savedTags])).slice(
+      -160,
+    );
+
+    let data: { cards?: Card[]; style_dna?: StyleDNA };
+    try {
+      const res = await fetch("/api/generate-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tastes, saved, cursor: nextCursor, avoid_topics, avoid_tags }),
+      });
+      data = (await res.json()) as { cards?: Card[]; style_dna?: StyleDNA };
+      setLoadError(null);
+    } catch (error) {
+      console.error("Failed to fetch /api/generate-cards", error);
+      setLoadError("Could not load Persona feed. Please retry.");
+      return;
+    }
+
+    if (Array.isArray(data.cards) && data.cards.length) {
+      const newCards: Card[] = data.cards.map((card: Card, i: number) => ({
+        ...card,
+        id: String(card.id || `${nextCursor}-${i + 1}`),
+      }));
+
+      if (mode === "replace") {
+        setCards(newCards);
+        addSeenFromCards(newCards);
+        setIndex(0);
+        setExpanded(false);
+        cursorRef.current = nextCursor;
+        setCursor(nextCursor);
+      } else {
+        const existingIds = new Set(cardsRef.current.map((c) => c.id));
+        const deduped = newCards.filter((c) => !existingIds.has(c.id));
+        setCards((prev) => [...prev, ...deduped]);
+        addSeenFromCards(deduped);
+        cursorRef.current = nextCursor;
+        setCursor((prev) => prev + 1);
+      }
+    }
+
+    if (data.style_dna) {
+      setDna(data.style_dna);
+      writeJSON("persona:style_dna", data.style_dna);
+    }
+  }
+
+  async function loadMoreIfNeeded(nextIndex: number) {
+    if (nextIndex < cards.length - 3 || isLoadingMore || loadingMoreRef.current) return;
+
+    loadingMoreRef.current = true;
+    setIsLoadingMore(true);
+    const nextCursor = Math.max(cursorRef.current, cursor) + 1;
+
+    try {
+      await fetchBatch(nextCursor, "append");
+    } finally {
+      loadingMoreRef.current = false;
+      setIsLoadingMore(false);
+    }
+  }
+
+  function goTo(next: number) {
+    if (next < 0) return;
+    loadMoreIfNeeded(next);
+    if (next >= cards.length) return;
+    setIndex(next);
+    setExpanded(false);
+  }
+
+  useEffect(() => {
+    // Initial load: generate feed using taste + existing saves
+    const savedAll = readJSON<Card[]>("persona:saved", []);
+    setSavedIds(savedAll.map((c) => c.id));
+    fetchBatch(0, "replace", savedAll).catch(() => {
+      // If something fails, keep the loading state; API route already falls back.
+    });
+
+    // Load cached DNA quickly (optional)
+    const cachedDNA = readJSON<StyleDNA | null>("persona:style_dna", null);
+    if (cachedDNA?.one_liner) setDna(cachedDNA);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function retryLoad() {
+    const savedAll = readJSON<Card[]>("persona:saved", []);
+    setSavedIds(savedAll.map((c) => c.id));
+    await fetchBatch(0, "replace", savedAll);
+  }
+
+  async function saveCard(card: Card) {
+    const savedAll = readJSON<Card[]>("persona:saved", []);
+
+    // Prevent duplicates by id
+    const exists = savedAll.some((c) => c.id === card.id && c.caption_short === card.caption_short);
+    const nextSaved = exists ? savedAll : [card, ...savedAll];
+
+    writeJSON("persona:saved", nextSaved);
+    setSavedIds(nextSaved.map((c) => c.id));
+
+    // Small toast instead of alert
+    setToast(exists ? "Already saved" : "Saved");
+    window.setTimeout(() => setToast(null), 900);
+    setJustSaved(true);
+    window.setTimeout(() => setJustSaved(false), 900);
+
+    // Re-generate immediately (the “learning” loop)
+    setIsUpdating(true);
+    try {
+      await fetchBatch(0, "replace", nextSaved);
+    } finally {
+      setIsUpdating(false);
+    }
+  }
+
+  if (!cards.length) {
+    if (loadError) {
+      return (
+        <div className="h-screen flex flex-col items-center justify-center text-gray-600 gap-3 px-6 text-center">
+          <div>{loadError}</div>
+          <button
+            onClick={retryLoad}
+            className="px-4 py-2 rounded bg-black text-white text-sm"
+          >
+            Retry
+          </button>
+        </div>
+      );
+    }
+    return (
+      <div className="h-screen flex items-center justify-center text-gray-500">
+        Loading Persona…
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-screen h-screen bg-white text-black overflow-hidden">
+      {/* Top nav */}
+      <div className="absolute top-4 left-4 z-20 flex gap-3 items-center">
+        <div className="bg-black text-white px-3 py-1 rounded-full text-sm">Persona</div>
+        <a href="/saved" className="text-sm underline">
+          Collection
+        </a>
+        <a href="/taste" className="text-sm underline">
+          Taste
+        </a>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div className="absolute top-4 right-4 z-30">
+          <div className="rounded-full bg-black text-white text-xs px-3 py-2 shadow">
+            {toast}
+          </div>
+        </div>
+      )}
+
+      {/* Style DNA */}
+      {dna?.one_liner && (
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92vw] max-w-sm">
+          <div className="rounded-xl border bg-white/90 backdrop-blur px-3 py-2 shadow-sm">
+            <div className="text-xs text-gray-500">Your Style DNA</div>
+            <div className="text-sm font-medium">{dna.one_liner}</div>
+            {dna.keywords?.length ? (
+              <div className="mt-1 text-xs text-gray-600">
+                {dna.keywords.slice(0, 8).join(" • ")}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      )}
+
+      <div className="h-full w-full flex items-center justify-center">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={active.id}
+            className="w-full h-full max-w-sm mx-auto"
+            style={{ touchAction: "none" }}
+            drag="y"
+            dragConstraints={{ top: 0, bottom: 0 }}
+            dragElastic={0.2}
+            onDragEnd={(_, info) => {
+              if (expanded) return;
+              if (info.offset.y < -100) goTo(index + 1);
+              if (info.offset.y > 100) goTo(index - 1);
+            }}
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -50, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <div className="h-full flex flex-col justify-center px-4">
+              <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh]">
+                <div className="relative w-full h-2/3 bg-gray-100">
+                  <img
+                    src={active.image_url}
+                    className="object-cover w-full h-full"
+                    alt=""
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                </div>
+
+                <div className="p-4 h-1/3">
+                  <div className="text-xs text-gray-500">
+                    {active.tags.slice(0, 5).join(" • ")}
+                  </div>
+
+                  <div className="mt-2 text-base font-medium">{active.caption_short}</div>
+                  <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
+
+                  {!expanded ? (
+                    <button onClick={() => setExpanded(true)} className="mt-2 text-sm underline">
+                      Read more
+                    </button>
+                  ) : (
+                    <div className="mt-3 text-sm text-gray-700 max-h-[16vh] overflow-y-auto pr-1">
+                      {active.caption_long}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex gap-2">
+                    <button
+                      onClick={() => saveCard(active)}
+                      disabled={isUpdating}
+                      className={`px-3 py-2 rounded text-sm transition ${
+                        savedIds.includes(active.id)
+                          ? "bg-gray-200 text-gray-700"
+                          : "bg-black text-white"
+                      }`}
+                    >
+                      {savedIds.includes(active.id) ? "✓ Collected" : "+ Collection"}
+                    </button>
+
+                    <button
+                      onClick={() => goTo(index + 1)}
+                      className="px-3 py-2 rounded bg-gray-100 text-sm"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-center text-xs text-gray-400">
+                Drag up/down to browse • Tap “Read more”
+              </div>
+              {isLoadingMore ? (
+                <div className="mt-1 text-center text-xs text-gray-500">Loading more…</div>
+              ) : null}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+}
