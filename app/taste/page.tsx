@@ -12,7 +12,6 @@ const OPTIONS = [
   {
     group: "Furniture & Interiors",
     items: [
-      "Laughing Out Loud!!",
       "Eames Chairs",
       "IKEA",
       "Japanese Interiors",
