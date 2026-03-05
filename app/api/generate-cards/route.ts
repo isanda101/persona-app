@@ -184,8 +184,13 @@ Rules:
 - 30% of cards should come from style_dna.adjacent exploration.
 - Avoid topics in avoid_topics (case-insensitive).
 - Avoid tags/themes in avoid_tags.
-- caption_short <= 180 chars.
-- caption_long 2–5 sentences.
+- caption_short must be under 20 words.
+- caption_long must be approximately 120–180 words.
+- Write caption_long like an editorial piece from a design or fashion magazine.
+- Focus on the specific object in the image or topic.
+- Include historical context, design details, and cultural significance.
+- Avoid generic phrases like "luxury brand" or "known for quality".
+- Write a detailed editorial explanation about the object or topic. Include design details, historical background, and why it matters culturally or to collectors.
 - tags 4–7 tags and include the topic.
 JSON ONLY.`;
 
