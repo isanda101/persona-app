@@ -378,7 +378,10 @@ export default function PersonaFeed() {
                       >
                         Show less
                       </button>
-                      <div className="mt-2 text-sm text-gray-700 max-h-[16vh] overflow-y-auto pr-1">
+                      <div
+                        onPointerDown={(e) => e.stopPropagation()}
+                        className="mt-2 text-sm text-gray-700 max-h-[28vh] overflow-y-auto pr-1 leading-relaxed"
+                      >
                         {active.caption_long}
                       </div>
                     </div>
