@@ -9,6 +9,18 @@ const OPTIONS = [
   { group: "Art", items: ["Basquiat", "KAWS", "Murakami"] },
   { group: "Watches", items: ["Rolex", "Omega", "Cartier"] },
   { group: "Cars", items: ["Porsche", "Ferrari", "BMW", "Mercedes", "American Muscle"] },
+  {
+    group: "Furniture & Interiors",
+    items: [
+      "Laughing Out Loud!!",
+      "Eames Chairs",
+      "IKEA",
+      "Japanese Interiors",
+      "Industrial Design",
+      "Ligne Roset Togo",
+      "Mid-Century Modern",
+    ],
+  },
   { group: "Aesthetics", items: ["Vintage", "Quiet Luxury", "Japanese Denim", "American Heritage"] },
 ];
 const INITIAL_TASTES = Array.from(new Set(OPTIONS.flatMap((section) => section.items)));
@@ -75,8 +87,15 @@ export default function TastePage() {
     setSelected((prev) => Array.from(new Set([...prev, ...suggested])));
   };
 
+  const normalizeForMatch = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
   const normalized = query.trim();
-  const normalizedQuery = normalized.toLowerCase();
+  const normalizedQuery = normalizeForMatch(normalized);
   const selectedSet = new Set(selected.map((item) => item.toLowerCase()));
   const tasteSet = new Set(tastes.map((item) => item.toLowerCase()));
   const showAddCustom =
@@ -146,12 +165,14 @@ export default function TastePage() {
           {OPTIONS.map((section) => {
             const sectionItems = section.items.filter((item) => tastes.includes(item));
             const groupMatches = normalizedQuery
-              ? section.group.toLowerCase().includes(normalizedQuery)
+              ? normalizeForMatch(section.group).includes(normalizedQuery)
               : false;
             const filteredItems = normalizedQuery
               ? groupMatches
                 ? sectionItems
-                : sectionItems.filter((item) => item.toLowerCase().includes(normalizedQuery))
+                : sectionItems.filter((item) =>
+                    normalizeForMatch(item).includes(normalizedQuery)
+                  )
               : sectionItems;
 
             if (!filteredItems.length) return null;
@@ -186,7 +207,9 @@ export default function TastePage() {
             const baseSet = new Set(OPTIONS.flatMap((section) => section.items));
             const customItems = tastes.filter((item) => !baseSet.has(item));
             const filteredCustom = normalizedQuery
-              ? customItems.filter((item) => item.toLowerCase().includes(normalizedQuery))
+              ? customItems.filter((item) =>
+                  normalizeForMatch(item).includes(normalizedQuery)
+                )
               : customItems;
 
             if (!filteredCustom.length) return null;
