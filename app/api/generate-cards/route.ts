@@ -20,6 +20,7 @@ type StyleDNA = {
 
 type Card = {
   id: string;
+  topic: string;
   image_url: string;
   caption_short: string;
   caption_long: string;
@@ -98,6 +99,7 @@ function fallbackDNA(tastes: string[], saved: SavedSignal[]): StyleDNA {
 function fallbackCard(topic: string, id: string): Card {
   return {
     id,
+    topic,
     image_url: img(topic),
     caption_short: `${topic}: a clean, quick editorial note—why it matters right now.`,
     caption_long: `Expanded take on ${topic}. (Fallback text — AI unavailable.)`,
@@ -109,6 +111,23 @@ function fallbackCard(topic: string, id: string): Card {
 function safeArrayStrings(v: any, max = 20): string[] {
   if (!Array.isArray(v)) return [];
   return v.map((x) => String(x)).filter(Boolean).slice(0, max);
+}
+
+function buildUnsplashQuery(card: Card, tastes: string[]) {
+  const base =
+    card.topic ||
+    card.tags?.slice(0, 2).join(" ") ||
+    tastes?.[0] ||
+    "design";
+  const lower = base.toLowerCase();
+
+  if (lower.includes("rolex")) return "rolex watch close-up";
+  if (lower.includes("porsche")) return "porsche sports car";
+  if (lower.includes("eames")) return "eames lounge chair";
+  if (lower.includes("levi's") || lower.includes("levis")) return "vintage levis denim";
+  if (lower.includes("basquiat")) return "basquiat painting";
+
+  return base;
 }
 
 export async function POST(req: Request) {
@@ -229,6 +248,7 @@ JSON ONLY.`;
             const topic = String(c.topic || tastes[(i + cursor) % tastes.length] || "Style");
             return {
               id: `raw-${i + 1}`,
+              topic,
               image_url: img(topic),
               caption_short: String(c.caption_short || `${topic}: editorial note.`).slice(0, 220),
               caption_long: String(c.caption_long || `Expanded take on ${topic}.`),
@@ -278,6 +298,7 @@ JSON ONLY.`;
       const topic = String(card.tags?.[0] || tastes[(i + cursor) % tastes.length] || "Style");
       return {
         id: `${cursor}-${i + 1}`,
+        topic: String(card.topic || topic),
         image_url: String(card.image_url || img(topic)),
         caption_short: String(card.caption_short || `${topic}: editorial note.`).slice(0, 220),
         caption_long: String(card.caption_long || `Expanded take on ${topic}.`),
@@ -344,7 +365,7 @@ JSON ONLY.`;
 
     await Promise.all(
       normalizedCards.slice(0, 8).map(async (card) => {
-        const query = card.tags?.slice(0, 2).join(" ") || tastes?.[0] || "style";
+        const query = buildUnsplashQuery(card, tastes);
         const image = await fetchUnsplashImage(query);
         if (!image) return;
         card.image_url = image.image_url;
