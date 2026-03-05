@@ -32,6 +32,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 export default function TastePage() {
   const router = useRouter();
   const [selected, setSelected] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     const raw = localStorage.getItem("persona:taste");
@@ -71,6 +72,26 @@ export default function TastePage() {
     setSelected((prev) => Array.from(new Set([...prev, ...suggested])));
   };
 
+  const normalizedQuery = query.trim().toLowerCase();
+  const allTasteItems = OPTIONS.flatMap((section) => section.items);
+  const selectedSet = new Set(selected.map((item) => item.toLowerCase()));
+  const allTasteSet = new Set(allTasteItems.map((item) => item.toLowerCase()));
+  const showAddCustom =
+    normalizedQuery.length >= 2 &&
+    !selectedSet.has(normalizedQuery) &&
+    !allTasteSet.has(normalizedQuery);
+
+  const addCustomTaste = () => {
+    const value = query.trim();
+    if (value.length < 2) return;
+    setSelected((prev) =>
+      prev.some((item) => item.toLowerCase() === value.toLowerCase())
+        ? prev
+        : [...prev, value]
+    );
+    setQuery("");
+  };
+
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
       <div className="max-w-md mx-auto">
@@ -80,32 +101,57 @@ export default function TastePage() {
           Choose a few brands/artists. Your feed will be curated around these.
         </p>
 
+        <div className="sticky top-0 z-10 bg-white pt-4 pb-3">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search brands, aesthetics, categories…"
+            className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+          />
+          {showAddCustom ? (
+            <button
+              onClick={addCustomTaste}
+              className="mt-2 px-3 py-2 rounded-full text-sm border bg-white text-black border-gray-300"
+            >
+              + Add &quot;{query.trim()}&quot;
+            </button>
+          ) : null}
+        </div>
+
         <div className="mt-6 space-y-6">
-          {OPTIONS.map((section) => (
-            <div key={section.group}>
-              <div className="text-sm font-medium text-gray-500 mb-3">
-                {section.group}
+          {OPTIONS.map((section) => {
+            const filteredItems = normalizedQuery
+              ? section.items.filter((item) => item.toLowerCase().includes(normalizedQuery))
+              : section.items;
+
+            if (!filteredItems.length) return null;
+
+            return (
+              <div key={section.group}>
+                <div className="text-sm font-medium text-gray-500 mb-3">
+                  {section.group}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {filteredItems.map((item) => {
+                    const on = selected.includes(item);
+                    return (
+                      <button
+                        key={item}
+                        onClick={() => toggle(item)}
+                        className={`px-3 py-2 rounded-full text-sm border ${
+                          on
+                            ? "bg-black text-white border-black"
+                            : "bg-white text-black border-gray-300"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {section.items.map((item) => {
-                  const on = selected.includes(item);
-                  return (
-                    <button
-                      key={item}
-                      onClick={() => toggle(item)}
-                      className={`px-3 py-2 rounded-full text-sm border ${
-                        on
-                          ? "bg-black text-white border-black"
-                          : "bg-white text-black border-gray-300"
-                      }`}
-                    >
-                      {item}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         <div className="mt-6">
