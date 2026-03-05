@@ -74,16 +74,16 @@ export default function TastePage() {
     setSelected((prev) => Array.from(new Set([...prev, ...suggested])));
   };
 
-  const normalizedQuery = query.trim().toLowerCase();
+  const normalized = query.trim();
+  const normalizedQuery = normalized.toLowerCase();
   const selectedSet = new Set(selected.map((item) => item.toLowerCase()));
   const tasteSet = new Set(tastes.map((item) => item.toLowerCase()));
   const showAddCustom =
-    normalizedQuery.length >= 2 &&
+    normalized.length >= 2 &&
     !selectedSet.has(normalizedQuery) &&
     !tasteSet.has(normalizedQuery);
 
   const addCustomTaste = () => {
-    const normalized = query.trim();
     if (normalized.length < 2) return;
     setTastes((prev) =>
       prev.some((item) => item.toLowerCase() === normalized.toLowerCase())
@@ -119,7 +119,7 @@ export default function TastePage() {
               onClick={addCustomTaste}
               className="mt-2 px-3 py-2 rounded-full text-sm border bg-white text-black border-gray-300"
             >
-              + Add &quot;{query.trim()}&quot;
+              + Add &quot;{normalized}&quot;
             </button>
           ) : null}
         </div>
