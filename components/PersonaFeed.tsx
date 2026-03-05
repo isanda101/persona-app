@@ -371,8 +371,16 @@ export default function PersonaFeed() {
                       Read more
                     </button>
                   ) : (
-                    <div className="mt-3 text-sm text-gray-700 max-h-[16vh] overflow-y-auto pr-1">
-                      {active.caption_long}
+                    <div className="mt-3">
+                      <button
+                        onClick={() => setExpanded(false)}
+                        className="text-sm underline text-gray-700"
+                      >
+                        Show less
+                      </button>
+                      <div className="mt-2 text-sm text-gray-700 max-h-[16vh] overflow-y-auto pr-1">
+                        {active.caption_long}
+                      </div>
                     </div>
                   )}
 
