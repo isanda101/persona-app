@@ -10,6 +10,7 @@ const OPTIONS = [
   { group: "Watches", items: ["Rolex", "Omega", "Cartier"] },
   { group: "Aesthetics", items: ["Vintage", "Quiet Luxury", "Japanese Denim", "American Heritage"] },
 ];
+const INITIAL_TASTES = Array.from(new Set(OPTIONS.flatMap((section) => section.items)));
 
 const SUGGESTIONS: Record<string, string[]> = {
   Rolex: ["Patek Philippe", "Audemars Piguet", "Omega", "Vintage Watches", "Quiet Luxury"],
@@ -31,6 +32,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 
 export default function TastePage() {
   const router = useRouter();
+  const [tastes, setTastes] = useState<string[]>(INITIAL_TASTES);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
 
@@ -73,21 +75,25 @@ export default function TastePage() {
   };
 
   const normalizedQuery = query.trim().toLowerCase();
-  const allTasteItems = OPTIONS.flatMap((section) => section.items);
   const selectedSet = new Set(selected.map((item) => item.toLowerCase()));
-  const allTasteSet = new Set(allTasteItems.map((item) => item.toLowerCase()));
+  const tasteSet = new Set(tastes.map((item) => item.toLowerCase()));
   const showAddCustom =
     normalizedQuery.length >= 2 &&
     !selectedSet.has(normalizedQuery) &&
-    !allTasteSet.has(normalizedQuery);
+    !tasteSet.has(normalizedQuery);
 
   const addCustomTaste = () => {
-    const value = query.trim();
-    if (value.length < 2) return;
-    setSelected((prev) =>
-      prev.some((item) => item.toLowerCase() === value.toLowerCase())
+    const normalized = query.trim();
+    if (normalized.length < 2) return;
+    setTastes((prev) =>
+      prev.some((item) => item.toLowerCase() === normalized.toLowerCase())
         ? prev
-        : [...prev, value]
+        : [normalized, ...prev]
+    );
+    setSelected((prev) =>
+      prev.some((item) => item.toLowerCase() === normalized.toLowerCase())
+        ? prev
+        : [...prev, normalized]
     );
     setQuery("");
   };
@@ -121,8 +127,10 @@ export default function TastePage() {
         <div className="mt-6 space-y-6">
           {OPTIONS.map((section) => {
             const filteredItems = normalizedQuery
-              ? section.items.filter((item) => item.toLowerCase().includes(normalizedQuery))
-              : section.items;
+              ? section.items
+                  .filter((item) => tastes.includes(item))
+                  .filter((item) => item.toLowerCase().includes(normalizedQuery))
+              : section.items.filter((item) => tastes.includes(item));
 
             if (!filteredItems.length) return null;
 
@@ -152,6 +160,39 @@ export default function TastePage() {
               </div>
             );
           })}
+          {(() => {
+            const baseSet = new Set(OPTIONS.flatMap((section) => section.items));
+            const customItems = tastes.filter((item) => !baseSet.has(item));
+            const filteredCustom = normalizedQuery
+              ? customItems.filter((item) => item.toLowerCase().includes(normalizedQuery))
+              : customItems;
+
+            if (!filteredCustom.length) return null;
+
+            return (
+              <div>
+                <div className="text-sm font-medium text-gray-500 mb-3">Custom</div>
+                <div className="flex flex-wrap gap-2">
+                  {filteredCustom.map((item) => {
+                    const on = selected.includes(item);
+                    return (
+                      <button
+                        key={item}
+                        onClick={() => toggle(item)}
+                        className={`px-3 py-2 rounded-full text-sm border ${
+                          on
+                            ? "bg-black text-white border-black"
+                            : "bg-white text-black border-gray-300"
+                        }`}
+                      >
+                        {item}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         <div className="mt-6">
