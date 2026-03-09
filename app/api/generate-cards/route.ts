@@ -211,26 +211,41 @@ export async function POST(req: Request) {
   if (body.upload && typeof body.upload === "object") {
     const { note, tags, image_url } = body.upload;
     const safeTags = safeArrayStrings(tags, 12);
+    const safeNote = typeof note === "string" ? note.trim() : "";
     const topic =
-      (typeof note === "string" && note.trim()) ||
-      (safeTags.length ? safeTags.join(" ") : "Community upload");
+      safeNote ||
+      (safeTags.length ? safeTags.join(" ") : "Community Upload");
 
-    let caption_long = `Editorial note about ${topic}.`;
-    if (process.env.OPENAI_API_KEY) {
-      try {
-        const completion = await openai.responses.create({
-          model: "gpt-4.1-mini",
-          input: `Write an editorial style description about ${topic}. 
-Tone: design magazine. 
-120-180 words. Mention design details and cultural context.`,
-        });
-        caption_long = completion.output_text || `Editorial note about ${topic}.`;
-      } catch {
-        caption_long = `Editorial note about ${topic}.`;
-      }
+    const editorialPrompt = `
+Write an editorial style description about the following object.
+
+Topic: ${topic}
+Tags: ${safeTags.join(", ")}
+
+Write like a design / fashion magazine.
+
+Requirements:
+- 120 to 180 words
+- Describe the object
+- Mention design details, materials, cultural context
+- Write in an engaging editorial tone
+`;
+
+    let caption_long = `An editorial community upload featuring ${topic}.`;
+    try {
+      const completion = await openai.responses.create({
+        model: "gpt-4.1-mini",
+        input: editorialPrompt,
+      });
+      caption_long =
+        completion.output_text ||
+        `An editorial community upload featuring ${topic}.`;
+    } catch {
+      caption_long = `An editorial community upload featuring ${topic}.`;
     }
 
-    const caption_short = topic.length > 60 ? topic.slice(0, 60) : topic;
+    const caption_short =
+      topic.length > 60 ? topic.slice(0, 60) : topic;
 
     return NextResponse.json({
       cards: [

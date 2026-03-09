@@ -63,23 +63,34 @@ export default function UploadPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!imageFile || selectedTags.length === 0 || isSubmitting) return;
+    if (selectedTags.length === 0 || isSubmitting) return;
+    if (!imageFile) {
+      setError("Please choose an image first.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
 
     try {
-      const uploadForm = new FormData();
-      uploadForm.append("file", imageFile);
+      const formData = new FormData();
+      formData.append("file", imageFile);
 
-      const uploadRes = await fetch("/api/upload", {
+      const uploadRes = await fetch("/api/upload-image", {
         method: "POST",
-        body: uploadForm,
+        body: formData,
       });
 
       if (!uploadRes.ok) {
-        const text = await uploadRes.text();
-        throw new Error(text || "Image upload failed");
+        let message = "Image upload failed";
+        try {
+          const uploadErr = await uploadRes.json();
+          if (uploadErr?.error) message = String(uploadErr.error);
+        } catch {
+          const text = await uploadRes.text();
+          if (text) message = text;
+        }
+        throw new Error(message);
       }
 
       const uploadData = await uploadRes.json();
