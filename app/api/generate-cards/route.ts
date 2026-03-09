@@ -9,6 +9,11 @@ type Body = {
   cursor?: number;
   avoid_topics?: string[];
   avoid_tags?: string[];
+  upload?: {
+    note?: string;
+    tags?: string[];
+    image_data?: string | null;
+  };
 };
 
 type StyleDNA = {
@@ -32,16 +37,27 @@ type Scored = { score: number; index: number; item: any };
 
 const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
-const imgCache = new Map<string, { image_url: string; attribution?: string }>();
+type CacheEntry = { image_url: string; attribution?: string; expires: number };
+const imgCache = new Map<string, CacheEntry>();
+const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+let lastUnsplashStatus: { status?: number; error?: string } = {};
+let unsplashBlockedUntil = 0;
 
 async function fetchUnsplashImage(query: string) {
   if (!UNSPLASH_ACCESS_KEY) return null;
+  if (Date.now() < unsplashBlockedUntil) return null;
 
   const q = query.trim();
   if (!q) return null;
 
-  const cached = imgCache.get(q.toLowerCase());
-  if (cached) return cached;
+  const key = q.toLowerCase();
+  const cached = imgCache.get(key);
+  if (cached && cached.expires > Date.now()) {
+    return { image_url: cached.image_url, attribution: cached.attribution };
+  }
+  if (cached && cached.expires <= Date.now()) {
+    imgCache.delete(key);
+  }
 
   const url =
     "https://api.unsplash.com/search/photos?" +
@@ -53,16 +69,30 @@ async function fetchUnsplashImage(query: string) {
     }).toString();
 
   try {
+    lastUnsplashStatus = {};
     const res = await fetch(url, {
       headers: { Authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}` },
       // prevent next from caching API fetches unexpectedly
       cache: "no-store",
     });
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => "");
+      lastUnsplashStatus = {
+        status: res.status,
+        error: errorText,
+      };
+      if (res.status === 403 && errorText.includes("Rate Limit Exceeded")) {
+        unsplashBlockedUntil = Date.now() + 30 * 60 * 1000; // 30 minutes
+      }
+      return null;
+    }
     const data = await res.json();
     const results = Array.isArray(data?.results) ? data.results : [];
-    if (!results.length) return null;
+    if (!results.length) {
+      lastUnsplashStatus = { status: 200, error: "no_results" };
+      return null;
+    }
 
     const keywords = Array.from(
       new Set(
@@ -90,9 +120,10 @@ async function fetchUnsplashImage(query: string) {
       attribution: `Photo by ${picked.user?.name || "Unknown"} on Unsplash`,
     };
 
-    imgCache.set(q.toLowerCase(), out);
+    imgCache.set(key, { ...out, expires: Date.now() + CACHE_TTL_MS });
     return out;
-  } catch {
+  } catch (err) {
+    lastUnsplashStatus = { error: String((err as Error)?.message || err) };
     return null;
   }
 }
@@ -138,12 +169,22 @@ function safeArrayStrings(v: any, max = 20): string[] {
   return v.map((x) => String(x)).filter(Boolean).slice(0, max);
 }
 
+function trimToWords(value: string, maxWords: number): string {
+  const words = String(value || "").trim().split(/\s+/).filter(Boolean);
+  if (words.length <= maxWords) return words.join(" ");
+  return words.slice(0, maxWords).join(" ");
+}
+
 function deriveImageQuery(topic: string, tags: string[]) {
   const tagText = tags.join(" ").toLowerCase();
   const topicText = topic.toLowerCase();
   const has = (value: string) => tagText.includes(value) || topicText.includes(value);
 
-  if (has("gucci")) return "gucci sneakers fashion";
+  if (has("gucci")) {
+    if (topicText.includes("bag")) return "gucci bag marmont";
+    if (topicText.includes("sneaker") || tagText.includes("sneaker")) return "gucci sneakers";
+    return "gucci fashion";
+  }
   if (has("rolex")) return "rolex gmt watch close up";
   if (has("porsche")) return "porsche 911 sports car";
   if (has("eames")) return "eames lounge chair interior";
@@ -154,6 +195,12 @@ function deriveImageQuery(topic: string, tags: string[]) {
 
 export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as Body;
+  const image_debug: any[] = [];
+  const getDebug = () => ({
+    has_unsplash_key: Boolean(process.env.UNSPLASH_ACCESS_KEY),
+    unsplash_last: lastUnsplashStatus,
+    unsplash_blocked: Date.now() < unsplashBlockedUntil,
+  });
 
   const tastes = Array.isArray(body.tastes) && body.tastes.length
     ? body.tastes.map(String)
@@ -165,6 +212,113 @@ export async function POST(req: Request) {
   const avoid_tags = safeArrayStrings(body.avoid_tags, 160);
   const avoidSet = new Set(avoid_topics.map((x) => x.toLowerCase().trim()).filter(Boolean));
   const tasteSet = new Set(tastes.map((t) => t.toLowerCase().trim()));
+
+  // Upload mode: return one editorial card using upload note/tags (+ optional image_data).
+  if (body.upload && typeof body.upload === "object") {
+    const uploadNote = typeof body.upload.note === "string" ? body.upload.note.trim().slice(0, 800) : "";
+    const uploadTags = safeArrayStrings(body.upload.tags, 12);
+    const uploadImageData =
+      typeof body.upload.image_data === "string" && body.upload.image_data.trim()
+        ? body.upload.image_data.trim()
+        : null;
+
+    const inferredTopic =
+      uploadTags[0] ||
+      (uploadNote
+        ? uploadNote
+            .split(/[.!?\n]/)[0]
+            .trim()
+            .slice(0, 64)
+        : "Editorial Object");
+
+    const dedupedTags = Array.from(new Set([inferredTopic, ...uploadTags])).slice(0, 12);
+    const fallbackShort = `${inferredTopic}: collector note in one look.`;
+    const fallbackLong = [
+      `This ${inferredTopic.toLowerCase()} reads as a deliberate editorial object rather than simple product imagery.`,
+      `The composition emphasizes proportion, material contrast, and finish, which is exactly where desirability is decided for collectors.`,
+      `Viewed through ${dedupedTags.slice(0, 4).join(", ") || "contemporary taste"}, it sits between utility and statement: designed to hold attention without over-explaining itself.`,
+      `What makes it relevant now is the shift toward pieces with narrative depth, where styling, provenance, and context matter as much as brand recognition.`,
+      `As an object card, the value is in how it can be read repeatedly: shape, texture, era references, and the subtle signals that separate trend from lasting cultural pull.`,
+    ].join(" ");
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({
+        id: `upload-${Date.now()}`,
+        topic: inferredTopic,
+        image_url: uploadImageData || img(inferredTopic),
+        caption_short: trimToWords(fallbackShort, 19),
+        caption_long: fallbackLong,
+        tags: dedupedTags.length ? dedupedTags : [inferredTopic, "Editorial", "Object", "Style"],
+        attribution: "Uploaded by community",
+      });
+    }
+
+    try {
+      const uploadPrompt = `
+Return STRICT JSON ONLY with shape:
+{
+  "topic": string,
+  "caption_short": string,
+  "caption_long": string,
+  "tags": string[]
+}
+
+You are writing a single editorial object card.
+Inputs:
+- note: ${JSON.stringify(uploadNote)}
+- tags: ${JSON.stringify(uploadTags)}
+
+Rules:
+- Write like an editorial object card.
+- Use provided tags and note context.
+- caption_short must be under 20 words.
+- caption_long must be approximately 120-180 words.
+- Tone: object-aware, stylish, collector/editorial.
+- tags should be relevant and include topic.
+JSON ONLY.
+`;
+
+      const uploadResp = await client.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: uploadPrompt }],
+        response_format: { type: "json_object" },
+      });
+
+      const uploadText = uploadResp.choices[0]?.message?.content ?? "{}";
+      const parsedUpload = JSON.parse(uploadText) as {
+        topic?: string;
+        caption_short?: string;
+        caption_long?: string;
+        tags?: string[];
+      };
+
+      const topic = String(parsedUpload.topic || inferredTopic).trim() || inferredTopic;
+      const tagsFromModel = safeArrayStrings(parsedUpload.tags, 12);
+      const finalTags = Array.from(new Set([topic, ...tagsFromModel, ...uploadTags])).slice(0, 12);
+      const generatedLong = String(parsedUpload.caption_long || fallbackLong).trim();
+      const boundedLong = trimToWords(generatedLong, 180);
+
+      return NextResponse.json({
+        id: `upload-${Date.now()}`,
+        topic,
+        image_url: uploadImageData || img(topic),
+        caption_short: trimToWords(String(parsedUpload.caption_short || fallbackShort), 19),
+        caption_long: trimToWords(boundedLong, 120).split(/\s+/).length < 120 ? fallbackLong : boundedLong,
+        tags: finalTags.length ? finalTags : [topic, "Editorial", "Object", "Style"],
+        attribution: "Uploaded by community",
+      });
+    } catch {
+      return NextResponse.json({
+        id: `upload-${Date.now()}`,
+        topic: inferredTopic,
+        image_url: uploadImageData || img(inferredTopic),
+        caption_short: trimToWords(fallbackShort, 19),
+        caption_long: fallbackLong,
+        tags: dedupedTags.length ? dedupedTags : [inferredTopic, "Editorial", "Object", "Style"],
+        attribution: "Uploaded by community",
+      });
+    }
+  }
 
   // Always have deterministic fallback ready
   const fallback = () => {
@@ -178,7 +332,7 @@ export async function POST(req: Request) {
   // If no key, return fallback JSON
   if (!process.env.OPENAI_API_KEY) {
     const out = fallback();
-    return NextResponse.json({ ...out, warning: "OPENAI_API_KEY not set." });
+    return NextResponse.json({ ...out, warning: "OPENAI_API_KEY not set.", debug: getDebug(), image_debug });
   }
 
   try {
@@ -248,7 +402,12 @@ JSON ONLY.`;
       parsed = JSON.parse(text);
     } catch (e: any) {
       const out = fallback();
-      return NextResponse.json({ ...out, warning: `JSON parse failed: ${String(e?.message || e)}` });
+      return NextResponse.json({
+        ...out,
+        warning: `JSON parse failed: ${String(e?.message || e)}`,
+        debug: getDebug(),
+        image_debug,
+      });
     }
 
     const dna = parsed?.style_dna;
@@ -392,10 +551,20 @@ JSON ONLY.`;
       }
     }
 
+    const cardsNeedingImage = normalizedCards
+      .filter((card) => !card.image_url || card.image_url.includes("picsum.photos"))
+      .slice(0, 3);
+
     await Promise.all(
-      normalizedCards.slice(0, 8).map(async (card) => {
+      cardsNeedingImage.map(async (card) => {
         const query = card.image_query || deriveImageQuery(card.topic, card.tags);
         const image = await fetchUnsplashImage(query);
+        image_debug.push({
+          topic: card.topic,
+          image_query: card.image_query,
+          used_unsplash: Boolean(image),
+          unsplash_ok: image ? true : false,
+        });
         if (!image) return;
         card.image_url = image.image_url;
         card.attribution = image.attribution;
@@ -405,12 +574,12 @@ JSON ONLY.`;
     // NEVER return empty cards
     if (!normalizedCards.length) {
       const out = fallback();
-      return NextResponse.json({ ...out, warning: "No cards returned; fallback used." });
+      return NextResponse.json({ ...out, warning: "No cards returned; fallback used.", debug: getDebug(), image_debug });
     }
 
-    return NextResponse.json({ cards: normalizedCards, style_dna });
+    return NextResponse.json({ cards: normalizedCards, style_dna, debug: getDebug(), image_debug });
   } catch (err: any) {
     const out = fallback();
-    return NextResponse.json({ ...out, warning: String(err?.message || err) });
+    return NextResponse.json({ ...out, warning: String(err?.message || err), debug: getDebug(), image_debug });
   }
 }

@@ -10,6 +10,7 @@ type Card = {
   caption_long: string;
   tags: string[];
   attribution?: string;
+  source?: "community";
 };
 
 type StyleDNA = {
@@ -123,6 +124,49 @@ export default function PersonaFeed() {
     setSeenTags(nextTags);
   }
 
+  function normalizeUploadCard(raw: unknown, i: number): Card | null {
+    if (!raw || typeof raw !== "object") return null;
+    const obj = raw as Partial<Card>;
+    const tags = Array.isArray(obj.tags) ? obj.tags.map((t) => String(t)).filter(Boolean) : [];
+    const captionShort = String(obj.caption_short || "").trim();
+    const imageUrl = String(obj.image_url || "").trim();
+    if (!captionShort || !imageUrl || !tags.length) return null;
+
+    return {
+      id: String(obj.id || `community-${Date.now()}-${i + 1}`),
+      image_url: imageUrl,
+      caption_short: captionShort,
+      caption_long: String(obj.caption_long || ""),
+      tags,
+      attribution: obj.attribution ? String(obj.attribution) : "Uploaded by community",
+      source: "community",
+    };
+  }
+
+  function selectRelevantUploads(
+    tastes: string[],
+    styleKeywords: string[],
+    maxCount = 3,
+  ): Card[] {
+    const uploads = readJSON<unknown[]>("persona:uploads", []);
+    if (!Array.isArray(uploads) || !uploads.length) return [];
+
+    const relevancePool = new Set(
+      [...tastes, ...styleKeywords].map((x) => String(x).toLowerCase().trim()).filter(Boolean),
+    );
+    if (!relevancePool.size) return [];
+
+    const normalized = uploads
+      .map((item, i) => normalizeUploadCard(item, i))
+      .filter((item): item is Card => Boolean(item));
+
+    const matching = normalized.filter((card) =>
+      card.tags.some((tag) => relevancePool.has(tag.toLowerCase().trim())),
+    );
+
+    return matching.slice(0, maxCount);
+  }
+
   async function fetchBatch(nextCursor: number, mode: "replace" | "append", savedAll?: Card[]) {
     const tastes = readJSON<string[]>("persona:taste", []);
     const savedSource = savedAll ?? readJSON<Card[]>("persona:saved", []);
@@ -160,9 +204,26 @@ export default function PersonaFeed() {
         id: String(card.id || `${nextCursor}-${i + 1}`),
       }));
 
+      const effectiveStyleKeywords = Array.isArray(data.style_dna?.keywords)
+        ? data.style_dna?.keywords || []
+        : Array.isArray(dna?.keywords)
+          ? dna.keywords || []
+          : [];
+      const communityCards =
+        mode === "replace"
+          ? selectRelevantUploads(tastes, effectiveStyleKeywords, 3)
+          : [];
+      const mergedForReplace =
+        mode === "replace"
+          ? [
+              ...communityCards,
+              ...newCards.filter((card) => !communityCards.some((u) => u.id === card.id)),
+            ]
+          : newCards;
+
       if (mode === "replace") {
-        setCards(newCards);
-        addSeenFromCards(newCards);
+        setCards(mergedForReplace);
+        addSeenFromCards(mergedForReplace);
         setIndex(0);
         setExpanded(false);
         cursorRef.current = nextCursor;
@@ -242,15 +303,17 @@ export default function PersonaFeed() {
   async function saveCard(card: Card) {
     const savedAll = readJSON<Card[]>("persona:saved", []);
 
-    // Prevent duplicates by id
-    const exists = savedAll.some((c) => c.id === card.id && c.caption_short === card.caption_short);
-    const nextSaved = exists ? savedAll : [card, ...savedAll];
+    // Same id-based toggle behavior for every card source.
+    const exists = savedAll.some((c) => c.id === card.id);
+    const nextSaved = exists
+      ? savedAll.filter((c) => c.id !== card.id)
+      : [card, ...savedAll];
 
     writeJSON("persona:saved", nextSaved);
     setSavedIds(nextSaved.map((c) => c.id));
 
     // Small toast instead of alert
-    setToast(exists ? "Already in collection" : "Collected");
+    setToast(exists ? "Removed from collection" : "Collected");
     window.setTimeout(() => setToast(null), 900);
     setJustSaved(true);
     window.setTimeout(() => setJustSaved(false), 900);
@@ -357,6 +420,9 @@ export default function PersonaFeed() {
         <a href="/saved" className="text-sm underline">
           Collection
         </a>
+        <a href="/upload" className="text-sm underline">
+          Upload
+        </a>
         <a href="/taste" className="text-sm underline">
           Taste
         </a>
@@ -420,6 +486,11 @@ export default function PersonaFeed() {
                   <div className="text-xs text-gray-500">
                     {active.tags.slice(0, 5).join(" • ")}
                   </div>
+                  {active.source === "community" ? (
+                    <div className="mt-1 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
+                      Community
+                    </div>
+                  ) : null}
 
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
