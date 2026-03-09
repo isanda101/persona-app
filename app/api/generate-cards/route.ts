@@ -26,12 +26,13 @@ type StyleDNA = {
 type Card = {
   id: string;
   topic: string;
-  image_query: string;
+  image_query?: string;
   image_url: string;
   caption_short: string;
   caption_long: string;
   tags: string[];
   attribution?: string;
+  source?: "community" | "editorial";
 };
 type Scored = { score: number; index: number; item: any };
 
@@ -252,6 +253,7 @@ Requirements:
         {
           id: `upload-${Date.now()}`,
           topic,
+          image_query: "",
           image_url: typeof image_url === "string" ? image_url : "",
           caption_short,
           caption_long,

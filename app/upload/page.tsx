@@ -82,15 +82,8 @@ export default function UploadPage() {
       });
 
       if (!uploadRes.ok) {
-        let message = "Image upload failed";
-        try {
-          const uploadErr = await uploadRes.json();
-          if (uploadErr?.error) message = String(uploadErr.error);
-        } catch {
-          const text = await uploadRes.text();
-          if (text) message = text;
-        }
-        throw new Error(message);
+        const errText = await uploadRes.text();
+        throw new Error(errText || "Image upload failed");
       }
 
       const uploadData = await uploadRes.json();
@@ -99,7 +92,7 @@ export default function UploadPage() {
         throw new Error("No image URL returned from upload");
       }
 
-      const res = await fetch("/api/generate-cards", {
+      const cardRes = await fetch("/api/generate-cards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -111,18 +104,18 @@ export default function UploadPage() {
         }),
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Upload failed");
+      if (!cardRes.ok) {
+        const errText = await cardRes.text();
+        throw new Error(errText || "Card generation failed");
       }
 
-      const data = await res.json();
+      const cardData = await cardRes.json();
 
-      if (!data.cards || !Array.isArray(data.cards) || data.cards.length === 0) {
+      if (!cardData.cards || !Array.isArray(cardData.cards) || cardData.cards.length === 0) {
         throw new Error("No card returned from API");
       }
 
-      const newCard = data.cards[0];
+      const newCard = cardData.cards[0];
       const existingRaw = localStorage.getItem("persona:uploads") || "[]";
       const parsedExisting = JSON.parse(existingRaw);
       const existing = Array.isArray(parsedExisting) ? parsedExisting : [];
