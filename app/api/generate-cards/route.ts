@@ -12,7 +12,7 @@ type Body = {
   upload?: {
     note?: string;
     tags?: string[];
-    image_data?: string | null;
+    image_url?: string | null;
   };
 };
 
@@ -207,9 +207,9 @@ export async function POST(req: Request) {
   const avoidSet = new Set(avoid_topics.map((x) => x.toLowerCase().trim()).filter(Boolean));
   const tasteSet = new Set(tastes.map((t) => t.toLowerCase().trim()));
 
-  // Upload mode: return one editorial card using upload note/tags (+ optional image_data).
+  // Upload mode: return one editorial card using upload note/tags (+ image_url).
   if (body.upload && typeof body.upload === "object") {
-    const { note, tags, image_data } = body.upload;
+    const { note, tags, image_url } = body.upload;
     const safeTags = safeArrayStrings(tags, 12);
     const topic =
       (typeof note === "string" && note.trim()) ||
@@ -237,7 +237,7 @@ Tone: design magazine.
         {
           id: `upload-${Date.now()}`,
           topic,
-          image_url: image_data,
+          image_url: typeof image_url === "string" ? image_url : "",
           caption_short,
           caption_long,
           tags: safeTags,

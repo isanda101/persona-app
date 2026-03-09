@@ -61,14 +61,6 @@ export default function UploadPage() {
     );
   };
 
-  const fileToDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ""));
-      reader.onerror = () => reject(new Error("Failed to read file"));
-      reader.readAsDataURL(file);
-    });
-
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!imageFile || selectedTags.length === 0 || isSubmitting) return;
@@ -77,7 +69,24 @@ export default function UploadPage() {
     setError("");
 
     try {
-      const dataUrl = await fileToDataUrl(imageFile);
+      const uploadForm = new FormData();
+      uploadForm.append("file", imageFile);
+
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: uploadForm,
+      });
+
+      if (!uploadRes.ok) {
+        const text = await uploadRes.text();
+        throw new Error(text || "Image upload failed");
+      }
+
+      const uploadData = await uploadRes.json();
+      const blobUrl = typeof uploadData?.url === "string" ? uploadData.url : "";
+      if (!blobUrl) {
+        throw new Error("No image URL returned from upload");
+      }
 
       const res = await fetch("/api/generate-cards", {
         method: "POST",
@@ -86,7 +95,7 @@ export default function UploadPage() {
           upload: {
             note,
             tags: selectedTags,
-            image_data: dataUrl,
+            image_url: blobUrl,
           },
         }),
       });
