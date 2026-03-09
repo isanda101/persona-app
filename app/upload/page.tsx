@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { upload } from "@vercel/blob/client";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -73,21 +74,11 @@ export default function UploadPage() {
     setError("");
 
     try {
-      const formData = new FormData();
-      formData.append("file", imageFile);
-
-      const uploadRes = await fetch("/api/upload-image", {
-        method: "POST",
-        body: formData,
+      const blob = await upload(imageFile.name, imageFile, {
+        access: "public",
+        handleUploadUrl: "/api/upload-image",
       });
-
-      if (!uploadRes.ok) {
-        const errText = await uploadRes.text();
-        throw new Error(errText || "Image upload failed");
-      }
-
-      const uploadData = await uploadRes.json();
-      const blobUrl = typeof uploadData?.url === "string" ? uploadData.url : "";
+      const blobUrl = blob?.url || "";
       if (!blobUrl) {
         throw new Error("No image URL returned from upload");
       }
