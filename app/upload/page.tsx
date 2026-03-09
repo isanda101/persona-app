@@ -91,36 +91,28 @@ export default function UploadPage() {
         }),
       });
 
-      const payload = await res.json().catch(() => null);
-      if (!res.ok || !payload || typeof payload !== "object") {
-        throw new Error("Failed to generate editorial card");
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Upload failed");
       }
 
-      const generatedCard = Array.isArray((payload as { cards?: unknown[] }).cards)
-        ? (payload as { cards?: unknown[] }).cards?.[0]
-        : payload;
+      const data = await res.json();
 
-      if (!generatedCard || typeof generatedCard !== "object") {
-        throw new Error("Invalid card response");
+      if (!data.cards || !Array.isArray(data.cards) || data.cards.length === 0) {
+        throw new Error("No card returned from API");
       }
 
-      let existingUploads: unknown[] = [];
-      try {
-        const raw = localStorage.getItem("persona:uploads");
-        const parsed = raw ? JSON.parse(raw) : [];
-        existingUploads = Array.isArray(parsed) ? parsed : [];
-      } catch {
-        existingUploads = [];
-      }
+      const newCard = data.cards[0];
+      const existingRaw = localStorage.getItem("persona:uploads") || "[]";
+      const parsedExisting = JSON.parse(existingRaw);
+      const existing = Array.isArray(parsedExisting) ? parsedExisting : [];
+      localStorage.setItem("persona:uploads", JSON.stringify([newCard, ...existing]));
 
-      localStorage.setItem(
-        "persona:uploads",
-        JSON.stringify([generatedCard, ...existingUploads])
-      );
+      setError("");
 
       router.push("/");
-    } catch {
-      setError("Could not create editorial card. Try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create editorial card. Try again.");
       setIsSubmitting(false);
     }
   };
