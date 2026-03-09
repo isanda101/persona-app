@@ -35,7 +35,7 @@ type Card = {
 };
 type Scored = { score: number; index: number; item: any };
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 type CacheEntry = { image_url: string; attribution?: string; expires: number };
 const imgCache = new Map<string, CacheEntry>();
@@ -169,12 +169,6 @@ function safeArrayStrings(v: any, max = 20): string[] {
   return v.map((x) => String(x)).filter(Boolean).slice(0, max);
 }
 
-function trimToWords(value: string, maxWords: number): string {
-  const words = String(value || "").trim().split(/\s+/).filter(Boolean);
-  if (words.length <= maxWords) return words.join(" ");
-  return words.slice(0, maxWords).join(" ");
-}
-
 function deriveImageQuery(topic: string, tags: string[]) {
   const tagText = tags.join(" ").toLowerCase();
   const topicText = topic.toLowerCase();
@@ -194,7 +188,7 @@ function deriveImageQuery(topic: string, tags: string[]) {
 }
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as Body;
+  const body = (await req.json()) as Body;
   const image_debug: any[] = [];
   const getDebug = () => ({
     has_unsplash_key: Boolean(process.env.UNSPLASH_ACCESS_KEY),
@@ -215,109 +209,43 @@ export async function POST(req: Request) {
 
   // Upload mode: return one editorial card using upload note/tags (+ optional image_data).
   if (body.upload && typeof body.upload === "object") {
-    const uploadNote = typeof body.upload.note === "string" ? body.upload.note.trim().slice(0, 800) : "";
-    const uploadTags = safeArrayStrings(body.upload.tags, 12);
-    const uploadImageData =
-      typeof body.upload.image_data === "string" && body.upload.image_data.trim()
-        ? body.upload.image_data.trim()
-        : null;
+    const { note, tags, image_data } = body.upload;
+    const safeTags = safeArrayStrings(tags, 12);
+    const topic =
+      (typeof note === "string" && note.trim()) ||
+      (safeTags.length ? safeTags.join(" ") : "Community upload");
 
-    const inferredTopic =
-      uploadTags[0] ||
-      (uploadNote
-        ? uploadNote
-            .split(/[.!?\n]/)[0]
-            .trim()
-            .slice(0, 64)
-        : "Editorial Object");
-
-    const dedupedTags = Array.from(new Set([inferredTopic, ...uploadTags])).slice(0, 12);
-    const fallbackShort = `${inferredTopic}: collector note in one look.`;
-    const fallbackLong = [
-      `This ${inferredTopic.toLowerCase()} reads as a deliberate editorial object rather than simple product imagery.`,
-      `The composition emphasizes proportion, material contrast, and finish, which is exactly where desirability is decided for collectors.`,
-      `Viewed through ${dedupedTags.slice(0, 4).join(", ") || "contemporary taste"}, it sits between utility and statement: designed to hold attention without over-explaining itself.`,
-      `What makes it relevant now is the shift toward pieces with narrative depth, where styling, provenance, and context matter as much as brand recognition.`,
-      `As an object card, the value is in how it can be read repeatedly: shape, texture, era references, and the subtle signals that separate trend from lasting cultural pull.`,
-    ].join(" ");
-
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json({
-        id: `upload-${Date.now()}`,
-        topic: inferredTopic,
-        image_url: uploadImageData || img(inferredTopic),
-        caption_short: trimToWords(fallbackShort, 19),
-        caption_long: fallbackLong,
-        tags: dedupedTags.length ? dedupedTags : [inferredTopic, "Editorial", "Object", "Style"],
-        attribution: "Uploaded by community",
-      });
+    let caption_long = `Editorial note about ${topic}.`;
+    if (process.env.OPENAI_API_KEY) {
+      try {
+        const completion = await openai.responses.create({
+          model: "gpt-4.1-mini",
+          input: `Write an editorial style description about ${topic}. 
+Tone: design magazine. 
+120-180 words. Mention design details and cultural context.`,
+        });
+        caption_long = completion.output_text || `Editorial note about ${topic}.`;
+      } catch {
+        caption_long = `Editorial note about ${topic}.`;
+      }
     }
 
-    try {
-      const uploadPrompt = `
-Return STRICT JSON ONLY with shape:
-{
-  "topic": string,
-  "caption_short": string,
-  "caption_long": string,
-  "tags": string[]
-}
+    const caption_short = topic.length > 60 ? topic.slice(0, 60) : topic;
 
-You are writing a single editorial object card.
-Inputs:
-- note: ${JSON.stringify(uploadNote)}
-- tags: ${JSON.stringify(uploadTags)}
-
-Rules:
-- Write like an editorial object card.
-- Use provided tags and note context.
-- caption_short must be under 20 words.
-- caption_long must be approximately 120-180 words.
-- Tone: object-aware, stylish, collector/editorial.
-- tags should be relevant and include topic.
-JSON ONLY.
-`;
-
-      const uploadResp = await client.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [{ role: "user", content: uploadPrompt }],
-        response_format: { type: "json_object" },
-      });
-
-      const uploadText = uploadResp.choices[0]?.message?.content ?? "{}";
-      const parsedUpload = JSON.parse(uploadText) as {
-        topic?: string;
-        caption_short?: string;
-        caption_long?: string;
-        tags?: string[];
-      };
-
-      const topic = String(parsedUpload.topic || inferredTopic).trim() || inferredTopic;
-      const tagsFromModel = safeArrayStrings(parsedUpload.tags, 12);
-      const finalTags = Array.from(new Set([topic, ...tagsFromModel, ...uploadTags])).slice(0, 12);
-      const generatedLong = String(parsedUpload.caption_long || fallbackLong).trim();
-      const boundedLong = trimToWords(generatedLong, 180);
-
-      return NextResponse.json({
-        id: `upload-${Date.now()}`,
-        topic,
-        image_url: uploadImageData || img(topic),
-        caption_short: trimToWords(String(parsedUpload.caption_short || fallbackShort), 19),
-        caption_long: trimToWords(boundedLong, 120).split(/\s+/).length < 120 ? fallbackLong : boundedLong,
-        tags: finalTags.length ? finalTags : [topic, "Editorial", "Object", "Style"],
-        attribution: "Uploaded by community",
-      });
-    } catch {
-      return NextResponse.json({
-        id: `upload-${Date.now()}`,
-        topic: inferredTopic,
-        image_url: uploadImageData || img(inferredTopic),
-        caption_short: trimToWords(fallbackShort, 19),
-        caption_long: fallbackLong,
-        tags: dedupedTags.length ? dedupedTags : [inferredTopic, "Editorial", "Object", "Style"],
-        attribution: "Uploaded by community",
-      });
-    }
+    return NextResponse.json({
+      cards: [
+        {
+          id: `upload-${Date.now()}`,
+          topic,
+          image_url: image_data,
+          caption_short,
+          caption_long,
+          tags: safeTags,
+          attribution: "Uploaded by community",
+          source: "community",
+        },
+      ],
+    });
   }
 
   // Always have deterministic fallback ready
@@ -389,7 +317,7 @@ Rules:
 - tags 4–7 tags and include the topic.
 JSON ONLY.`;
 
-    const resp = await client.chat.completions.create({
+    const resp = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       response_format: { type: "json_object" },
