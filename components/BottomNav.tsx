@@ -1,0 +1,72 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Bookmark, Home, PlusSquare, Search, User } from "lucide-react";
+
+type NavItem = {
+  label: string;
+  href: string;
+  Icon: typeof Home;
+  isActive: (pathname: string) => boolean;
+};
+
+const ITEMS: NavItem[] = [
+  {
+    label: "Home",
+    href: "/",
+    Icon: Home,
+    isActive: (pathname) => pathname === "/",
+  },
+  {
+    label: "Search",
+    href: "/search",
+    Icon: Search,
+    isActive: (pathname) => pathname === "/search",
+  },
+  {
+    label: "Post",
+    href: "/upload",
+    Icon: PlusSquare,
+    isActive: (pathname) => pathname === "/upload",
+  },
+  {
+    label: "Collection",
+    href: "/collection",
+    Icon: Bookmark,
+    isActive: (pathname) => pathname === "/collection" || pathname === "/saved",
+  },
+  {
+    label: "Profile",
+    href: "/u/you",
+    Icon: User,
+    isActive: (pathname) => pathname.startsWith("/u/"),
+  },
+];
+
+export default function BottomNav() {
+  const pathname = usePathname();
+
+  return (
+    <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-gray-200 bg-white">
+      <div className="mx-auto flex h-full max-w-md items-center justify-around px-2">
+        {ITEMS.map(({ label, href, Icon, isActive }) => {
+          const active = isActive(pathname);
+          return (
+            <Link
+              key={label}
+              href={href}
+              className={`flex flex-col items-center justify-center gap-1 px-2 ${
+                active ? "text-black" : "text-gray-500"
+              }`}
+              aria-label={label}
+            >
+              <Icon size={21} strokeWidth={2} />
+              <span className="text-xs">{label}</span>
+            </Link>
+          );
+        })}
+      </div>
+    </nav>
+  );
+}

@@ -461,7 +461,7 @@ export default function PersonaFeed() {
   if (!cards.length) {
     if (loadError) {
       return (
-        <div className="h-screen flex flex-col items-center justify-center text-gray-600 gap-3 px-6 text-center">
+        <div className="h-[calc(100svh-64px)] flex flex-col items-center justify-center text-gray-600 gap-3 px-6 text-center">
           <div>{loadError}</div>
           <button
             onClick={retryLoad}
@@ -475,7 +475,7 @@ export default function PersonaFeed() {
 
     if (isLoading) {
       return (
-        <div className="h-screen w-screen bg-white flex items-center justify-center px-4">
+        <div className="h-[calc(100svh-64px)] w-screen bg-white flex items-center justify-center px-4">
           <div className="w-full max-w-sm animate-pulse">
             <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh] border">
               <div className="w-full h-2/3 bg-gray-200" />
@@ -495,14 +495,14 @@ export default function PersonaFeed() {
     }
 
     return (
-      <div className="h-screen flex items-center justify-center text-gray-500">
+      <div className="h-[calc(100svh-64px)] flex items-center justify-center text-gray-500">
         Loading Persona…
       </div>
     );
   }
 
   return (
-    <div className="w-screen h-screen bg-white text-black overflow-hidden">
+    <div className="w-screen h-[calc(100svh-64px)] bg-white text-black overflow-hidden">
       {/* Top nav */}
       <div className="absolute top-4 inset-x-4 z-20">
         <PersonaHeader showSearch />
