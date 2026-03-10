@@ -13,6 +13,8 @@ type Card = {
   tags: string[];
   attribution?: string;
   source?: "community" | "editorial";
+  creator_name?: string;
+  creator_handle?: string;
 };
 
 type StyleDNA = {
@@ -578,6 +580,11 @@ export default function PersonaFeed() {
                   ) : null}
 
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    {active.source === "community"
+                      ? "by @you"
+                      : "Persona Editorial"}
+                  </div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
 
                   <div className="mt-2 flex items-center justify-between">

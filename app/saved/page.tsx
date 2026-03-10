@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 
 type CardItem = {
@@ -10,6 +9,8 @@ type CardItem = {
   caption_short?: string;
   tags: string[];
   source?: "community" | "editorial";
+  creator_name?: string;
+  creator_handle?: string;
 };
 
 type ParsedLikes = {
@@ -44,6 +45,8 @@ function normalizeCard(value: unknown): CardItem | null {
     : [];
 
   const source = obj.source === "community" ? "community" : "editorial";
+  const creator_name = String(obj.creator_name || "").trim();
+  const creator_handle = String(obj.creator_handle || "").trim();
 
   return {
     id,
@@ -52,6 +55,8 @@ function normalizeCard(value: unknown): CardItem | null {
     caption_short: captionShort || undefined,
     tags,
     source,
+    creator_name: creator_name || undefined,
+    creator_handle: creator_handle || undefined,
   };
 }
 
@@ -148,61 +153,66 @@ function compactTitle(card: CardItem) {
   return card.caption_short || card.topic || "Untitled";
 }
 
+function creatorLine(card: CardItem) {
+  if (card.source === "community") return "by @you";
+  return "Persona Editorial";
+}
+
 type SectionProps = {
-  title: string;
   emptyText: string;
   items: CardItem[];
   onRemove: (card: CardItem) => void;
   showCommunityBadge?: boolean;
 };
 
-function Section({ title, emptyText, items, onRemove, showCommunityBadge = false }: SectionProps) {
+function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: SectionProps) {
   return (
-    <section>
-      <h2 className="text-lg font-semibold mb-3">{sectionTitle(title, items.length)}</h2>
-      {items.length === 0 ? (
-        <div className="text-sm text-gray-500">{emptyText}</div>
-      ) : (
-        <div className="space-y-3">
+    <section className="mt-5">
+      {items.length === 0 ? <div className="text-sm text-gray-500">{emptyText}</div> : null}
+      {items.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3">
           {items.map((card) => (
-            <div
-              key={`${title}-${card.id}`}
-              className="border border-gray-200 rounded-xl bg-white p-2 flex gap-3 items-start"
-            >
-              <img
-                src={card.image_url}
-                alt={compactTitle(card)}
-                className="w-24 h-16 object-cover rounded-md shrink-0"
-              />
-              <div className="min-w-0 flex-1">
+            <div key={card.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <div className="relative">
+                <img
+                  src={card.image_url}
+                  alt={compactTitle(card)}
+                  className="w-full aspect-[3/4] object-cover"
+                />
+                <button
+                  type="button"
+                  onClick={() => onRemove(card)}
+                  className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 border border-gray-300 text-xs text-gray-700 hover:text-black"
+                  aria-label="Remove item"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-2">
                 <div className="text-sm font-medium truncate">{compactTitle(card)}</div>
+                {creatorLine(card) ? (
+                  <div className="text-xs text-gray-500 mt-0.5 truncate">{creatorLine(card)}</div>
+                ) : null}
                 <div className="text-xs text-gray-500 mt-1 truncate">
-                  {card.tags.length ? card.tags.slice(0, 5).join(" • ") : "No tags"}
+                  {card.tags.length ? card.tags.slice(0, 4).join(" • ") : "No tags"}
                 </div>
                 {showCommunityBadge && card.source === "community" ? (
-                  <div className="mt-1 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
+                  <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
                     Community
                   </div>
                 ) : null}
               </div>
-              <button
-                type="button"
-                onClick={() => onRemove(card)}
-                className="text-gray-500 hover:text-black text-sm leading-none px-1"
-                aria-label={`Remove from ${title}`}
-              >
-                ✕
-              </button>
             </div>
           ))}
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
 
 export default function SavedPage() {
   const initial = getInitialCollectionState();
+  const [activeTab, setActiveTab] = useState<"posted" | "collected" | "likes">("posted");
   const [collectedItems, setCollectedItems] = useState<CardItem[]>(initial.collected);
   const [postedItems, setPostedItems] = useState<CardItem[]>(initial.posted);
   const [likedIds, setLikedIds] = useState<string[]>(initial.likedIds);
@@ -245,44 +255,58 @@ export default function SavedPage() {
     });
   };
 
-  const isEverythingEmpty =
-    collectedItems.length === 0 && likedItems.length === 0 && postedItems.length === 0;
-
   return (
     <div className="p-6 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-semibold mb-6">Collection</h1>
+      <h1 className="text-2xl font-semibold">Collection</h1>
 
-      {isEverythingEmpty ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-6 text-center">
-          <div className="text-gray-700">Your collection is empty for now.</div>
-          <div className="text-sm text-gray-500 mt-1">Start collecting, liking, or posting to see items here.</div>
-          <Link href="/" className="underline mt-3 inline-block text-sm">
-            Back to feed
-          </Link>
-        </div>
-      ) : (
-        <div className="space-y-8">
-          <Section
-            title="Collected"
-            emptyText="No collected items yet."
-            items={collectedItems}
-            onRemove={removeCollected}
-          />
-          <Section
-            title="Liked"
-            emptyText="No liked items yet."
-            items={likedItems}
-            onRemove={removeLiked}
-          />
-          <Section
-            title="Posted"
-            emptyText="No posted items yet."
-            items={postedItems}
-            onRemove={removePosted}
-            showCommunityBadge
-          />
-        </div>
-      )}
+      <div className="mt-4 border-b border-gray-200 flex items-end gap-5">
+        {[
+          { key: "posted", label: sectionTitle("Posted", postedItems.length) },
+          { key: "collected", label: sectionTitle("Collected", collectedItems.length) },
+          { key: "likes", label: sectionTitle("Likes", likedItems.length) },
+        ].map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key as "posted" | "collected" | "likes")}
+              className={`pb-2 text-sm ${
+                isActive
+                  ? "text-black border-b-2 border-black font-medium"
+                  : "text-gray-500 border-b-2 border-transparent"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === "posted" ? (
+        <GridPanel
+          emptyText="You haven't posted anything yet."
+          items={postedItems}
+          onRemove={removePosted}
+          showCommunityBadge
+        />
+      ) : null}
+
+      {activeTab === "collected" ? (
+        <GridPanel
+          emptyText="No collected items yet."
+          items={collectedItems}
+          onRemove={removeCollected}
+        />
+      ) : null}
+
+      {activeTab === "likes" ? (
+        <GridPanel
+          emptyText="You haven't liked any items yet."
+          items={likedItems}
+          onRemove={removeLiked}
+        />
+      ) : null}
     </div>
   );
 }

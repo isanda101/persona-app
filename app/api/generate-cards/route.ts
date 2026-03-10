@@ -14,6 +14,8 @@ type Body = {
     tags?: string[];
     image_url?: string | null;
     editorial?: string;
+    creator_name?: string;
+    creator_handle?: string;
   };
 };
 
@@ -34,6 +36,8 @@ type Card = {
   tags: string[];
   attribution?: string;
   source?: "community" | "editorial";
+  creator_name?: string;
+  creator_handle?: string;
 };
 type Scored = { score: number; index: number; item: any };
 
@@ -290,10 +294,16 @@ export async function POST(req: Request) {
 
   // Upload mode: return one editorial card using upload note/tags (+ image_url).
   if (body.upload && typeof body.upload === "object") {
-    const { note, tags, image_url, editorial } = body.upload;
+    const { note, tags, image_url, editorial, creator_name, creator_handle } = body.upload;
     const safeTags = safeArrayStrings(tags, 12);
     const safeNote = typeof note === "string" ? note.trim() : "";
     const safeEditorial = typeof editorial === "string" ? editorial.trim() : "";
+    const safeCreatorName = typeof creator_name === "string" && creator_name.trim()
+      ? creator_name.trim()
+      : "You";
+    const safeCreatorHandle = typeof creator_handle === "string" && creator_handle.trim()
+      ? creator_handle.trim()
+      : "@you";
     const topic = buildUploadTopic(safeNote, safeTags);
 
     const editorialPrompt = `
@@ -341,6 +351,8 @@ Requirements:
           tags: safeTags,
           attribution: "Uploaded by community",
           source: "community",
+          creator_name: safeCreatorName,
+          creator_handle: safeCreatorHandle,
         },
       ],
     });

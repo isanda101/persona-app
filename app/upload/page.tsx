@@ -272,6 +272,8 @@ export default function UploadPage() {
             tags: selectedTags,
             image_url: uploadedImageUrl,
             editorial: editorialText,
+            creator_name: "You",
+            creator_handle: "@you",
           },
         }),
       });
@@ -287,7 +289,11 @@ export default function UploadPage() {
         throw new Error("No card returned from API");
       }
 
-      const newCard = cardData.cards[0];
+      const newCard = {
+        ...cardData.cards[0],
+        creator_name: String(cardData.cards[0]?.creator_name || "You"),
+        creator_handle: String(cardData.cards[0]?.creator_handle || "@you"),
+      };
       const existingRaw = localStorage.getItem("persona:uploads") || "[]";
       const parsedExisting = JSON.parse(existingRaw);
       const existing = Array.isArray(parsedExisting) ? parsedExisting : [];
