@@ -26,7 +26,7 @@ export default function AppShell({ children }: AppShellProps) {
       <main
         className={
           showBottomNav
-            ? "pt-16 pb-24 pb-[calc(6rem+env(safe-area-inset-bottom))]"
+            ? "pt-12 pb-24 pb-[calc(6rem+env(safe-area-inset-bottom))]"
             : ""
         }
       >

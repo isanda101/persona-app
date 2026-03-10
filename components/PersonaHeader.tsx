@@ -28,7 +28,7 @@ export default function PersonaHeader({
             ←
           </button>
         ) : null}
-        <Link href="/" className="bg-black text-white px-3 py-1 rounded-full text-sm">
+        <Link href="/" className="bg-black text-white px-2.5 py-0.5 rounded-full text-xs sm:px-3 sm:py-1 sm:text-sm">
           Persona
         </Link>
       </div>
