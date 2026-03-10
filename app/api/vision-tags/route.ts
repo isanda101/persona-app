@@ -71,18 +71,31 @@ Return STRICT JSON only with shape:
 
 Analyze the image.
 Requirements:
+- Brand detection is the most important output.
+- Main priority order: brand, object_type, then model/style/era.
+- Brand is the most important field. If a recognizable brand is likely present, return the best conservative brand guess. This platform uses brand tags to route content into the correct taste communities.
 - Identify the main object in the image.
 - Detect brand if visible or strongly recognizable.
+- If the image likely shows a recognizable brand, return that brand even if the model is uncertain.
 - Detect model if possible.
 - Detect style / era if relevant.
 - Suggest concise Persona-friendly tags.
 - Be conservative if uncertain.
 - Prefer real object names and categories over vague descriptions.
 - note must be 1-2 sentences, editorial but concise.
+- The main purpose of brand detection is feed routing for Persona taste communities.
+- If uncertain, still return the brand when it is reasonably recognizable.
 - If you cannot confidently identify brand or model, still return object_type, style, era if possible, and 3-6 relevant generic tags.
 - Never return all fields empty unless the image truly cannot be understood.
 - Tags should be useful for Persona communities. Good examples include:
   Watches, Dress Watch, Leather Strap, Rectangular Case, Vintage, Sportswear, Tracksuit, Denim, Chair, Interiors, Porsche, Ferrari.
+- Desired brand examples:
+  Rick Owens sneakers -> brand: Rick Owens
+  Nike tracksuit -> brand: Nike
+  Rolex watch -> brand: Rolex
+  Cartier Tank -> brand: Cartier
+  Porsche 911 -> brand: Porsche
+  Eames chair -> brand: Eames or Herman Miller if appropriate
 JSON ONLY.
 `;
 
