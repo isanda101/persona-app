@@ -596,18 +596,23 @@ export default function PersonaFeed() {
 
     if (isLoading) {
       return (
-        <div className="min-h-[100svh] w-screen bg-white px-4 pt-20 pb-28 flex items-center justify-center">
-          <div className="w-full max-w-sm animate-pulse">
-            <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh] border">
-              <div className="w-full h-2/3 bg-gray-200" />
-              <div className="p-4 h-1/3">
-                <div className="h-3 bg-gray-200 rounded w-4/5" />
-                <div className="mt-3 h-4 bg-gray-200 rounded w-full" />
-                <div className="mt-2 h-4 bg-gray-200 rounded w-3/4" />
-                <div className="mt-5 flex gap-2">
-                  <div className="h-9 rounded bg-gray-200 w-28" />
-                  <div className="h-9 rounded bg-gray-200 w-20" />
+        <div className="min-h-[100svh] w-screen bg-white px-4 pt-20 pb-28">
+          <div className="mx-auto w-full max-w-md">
+            <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white animate-pulse">
+              <div className="w-full aspect-[4/5] bg-gray-100" />
+              <div className="p-4">
+                <div className="h-3 w-2/3 rounded bg-gray-100" />
+                <div className="mt-3 h-4 w-full rounded bg-gray-100" />
+                <div className="mt-2 h-4 w-4/5 rounded bg-gray-100" />
+                <div className="mt-5 flex items-center justify-between">
+                  <div className="h-8 w-24 rounded bg-gray-100" />
+                  <div className="flex items-center gap-2">
+                    <div className="h-6 w-6 rounded-full bg-gray-100" />
+                    <div className="h-6 w-6 rounded-full bg-gray-100" />
+                    <div className="h-6 w-6 rounded-full bg-gray-100" />
+                  </div>
                 </div>
+                <div className="mt-3 h-3 w-1/2 rounded bg-gray-100" />
               </div>
             </div>
           </div>
