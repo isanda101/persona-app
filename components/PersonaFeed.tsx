@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import PersonaHeader from "./PersonaHeader";
 import {
   ensureEngagement,
@@ -525,6 +526,12 @@ export default function PersonaFeed() {
     }, 700);
   }
 
+  function creatorHrefFromHandle(handle?: string) {
+    const raw = String(handle || "").trim();
+    if (!raw) return "";
+    return `/u/${raw.replace(/^@/, "")}`;
+  }
+
   async function handleShare() {
     const shareUrl = window.location.href;
     if (navigator.share) {
@@ -716,10 +723,28 @@ export default function PersonaFeed() {
                   ) : null}
 
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    {active.source === "community"
-                      ? "by @you"
-                      : "Persona Editorial"}
+                  <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
+                    {active.source === "community" && active.creator_handle ? (
+                      <Link
+                        href={creatorHrefFromHandle(active.creator_handle)}
+                        className="hover:text-gray-700 active:text-black transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        by {active.creator_handle.startsWith("@") ? active.creator_handle : `@${active.creator_handle}`}
+                      </Link>
+                    ) : active.source !== "community" && active.creator_handle ? (
+                      <Link
+                        href={creatorHrefFromHandle(active.creator_handle)}
+                        className="hover:text-gray-700 active:text-black transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        by {active.creator_handle.startsWith("@") ? active.creator_handle : `@${active.creator_handle}`}
+                      </Link>
+                    ) : active.source === "community" ? (
+                      "by @you"
+                    ) : (
+                      "Persona Editorial"
+                    )}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
 
