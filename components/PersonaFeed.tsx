@@ -615,7 +615,7 @@ export default function PersonaFeed() {
       )}
 
       {/* Style DNA (temporarily hidden) */}
-      {false && dna?.one_liner && (
+      {false && dna && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92vw] max-w-xs">
           <motion.div
             layout
@@ -630,7 +630,7 @@ export default function PersonaFeed() {
               <div className="min-w-0">
                 <div className="text-[11px] text-gray-500">Your Style DNA</div>
                 <div className="text-xs text-gray-700 truncate">
-                  {dna.one_liner || (dna.keywords?.slice(0, 3).join(" • ") || "Style insights")}
+                  {dna?.one_liner || (dna?.keywords?.slice(0, 3).join(" • ") || "Style insights")}
                 </div>
               </div>
               <div className="text-xs text-gray-500 shrink-0">{dnaOpen ? "▲" : "▼"}</div>
@@ -647,15 +647,15 @@ export default function PersonaFeed() {
                   className="overflow-hidden"
                 >
                   <div className="pt-2">
-                    <div className="text-sm font-medium text-black">{dna.one_liner}</div>
-                    {dna.keywords?.length ? (
+                    <div className="text-sm font-medium text-black">{dna?.one_liner}</div>
+                    {dna?.keywords?.length ? (
                       <div className="mt-1 text-xs text-gray-600">
-                        {dna.keywords.slice(0, 8).join(" • ")}
+                        {dna?.keywords?.slice(0, 8).join(" • ")}
                       </div>
                     ) : null}
-                    {dna.adjacent?.length ? (
+                    {dna?.adjacent?.length ? (
                       <div className="mt-1 text-xs text-gray-500">
-                        Adjacent: {dna.adjacent.slice(0, 5).join(" • ")}
+                        Adjacent: {dna?.adjacent?.slice(0, 5).join(" • ")}
                       </div>
                     ) : null}
                   </div>
