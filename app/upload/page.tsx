@@ -47,16 +47,17 @@ export default function UploadPage() {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editorialText, setEditorialText] = useState("");
   const [isGeneratingEditorial, setIsGeneratingEditorial] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(OPTIONS.map((section) => [section.group, false])) as Record<string, boolean>
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
   const hasReadyForm =
-    Boolean(imageFile) &&
     Boolean(uploadedImageUrl) &&
     selectedTags.length > 0 &&
     !isSubmitting &&
-    !isUploadingImage &&
-    !isAnalyzingImage;
+    !isUploadingImage;
 
   const allTags = useMemo(
     () => Array.from(new Set(availableTags)),
@@ -226,6 +227,10 @@ export default function UploadPage() {
   const normalizedQuery = normalizeForMatch(normalizedQueryRaw);
   const selectedSet = new Set(selectedTags.map((item) => normalizeForMatch(item)));
   const availableSet = new Set(allTags.map((item) => normalizeForMatch(item)));
+  const hasDetectedMetadata = Boolean(
+    detectedBrand || detectedObjectType || detectedModel || detectedStyle || detectedEra
+  );
+  const showAiSuggestedSection = isAnalyzingImage || Boolean(aiTaggingError) || hasDetectedMetadata || suggestedTags.length > 0;
   const showAddCustom =
     normalizedQueryRaw.length >= 2 &&
     !selectedSet.has(normalizedQuery) &&
@@ -245,6 +250,10 @@ export default function UploadPage() {
         : [...prev, customTag]
     );
     setTagQuery("");
+  };
+
+  const toggleGroup = (group: string) => {
+    setOpenGroups((prev) => ({ ...prev, [group]: !prev[group] }));
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -317,6 +326,7 @@ export default function UploadPage() {
         {error ? <p className="text-sm text-red-600 mt-3">{error}</p> : null}
 
         <form onSubmit={submit} className="mt-6 space-y-6">
+          {/* A. Image upload / preview */}
           <div>
             <label htmlFor="upload-image" className="text-sm font-medium text-gray-500 block mb-2">
               Image
@@ -328,86 +338,23 @@ export default function UploadPage() {
               onChange={onImageChange}
               className="w-full text-sm file:mr-3 file:px-3 file:py-2 file:rounded-lg file:border file:border-gray-300 file:bg-white file:text-black"
             />
-          </div>
-
-          <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3">
-            {imagePreviewUrl ? (
-              <img
-                src={imagePreviewUrl}
-                alt="Selected upload preview"
-                className="w-full h-64 object-cover rounded-xl"
-              />
-            ) : (
-              <div className="w-full h-64 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-400 bg-white">
-                Image preview
-              </div>
-            )}
-          </div>
-
-          {(isUploadingImage ||
-            isAnalyzingImage ||
-            hasVisionResult ||
-            aiTaggingError ||
-            detectedBrand ||
-            detectedObjectType ||
-            detectedModel ||
-            detectedStyle ||
-            detectedEra ||
-            suggestedTags.length) ? (
-            <div className="rounded-2xl border border-gray-200 bg-white p-3">
-              <div className="text-sm font-medium text-gray-500 mb-2">AI Suggested Tags</div>
-              {isUploadingImage ? (
-                <div className="text-xs text-gray-500 mb-2">Uploading image...</div>
-              ) : null}
-              {isAnalyzingImage ? (
-                <div className="text-xs text-gray-500 mb-2">Analyzing image...</div>
-              ) : null}
-              {aiTaggingError ? (
-                <div className="text-xs text-red-600 mb-2">AI tagging failed</div>
-              ) : null}
-
-              {detectedBrand ? (
-                <div className="text-xs text-gray-500">Brand: {detectedBrand}</div>
-              ) : null}
-              {detectedObjectType ? (
-                <div className="text-xs text-gray-500">Object Type: {detectedObjectType}</div>
-              ) : null}
-              {detectedModel ? (
-                <div className="text-xs text-gray-500">Model: {detectedModel}</div>
-              ) : null}
-              {detectedStyle ? (
-                <div className="text-xs text-gray-500">Style: {detectedStyle}</div>
-              ) : null}
-              {detectedEra ? (
-                <div className="text-xs text-gray-500">Era: {detectedEra}</div>
-              ) : null}
-
-              {suggestedTags.length ? (
-                <div className="flex flex-wrap gap-2 mt-3">
-                  {suggestedTags.map((tag) => {
-                    const on = selectedTags.includes(tag);
-                    return (
-                      <button
-                        key={`ai-${tag}`}
-                        type="button"
-                        onClick={() => toggleTag(tag)}
-                        className={`px-3 py-2 rounded-full text-sm border ${
-                          on
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-black border-gray-300"
-                        }`}
-                      >
-                        {tag}
-                      </button>
-                    );
-                  })}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 mt-3">
+              {imagePreviewUrl ? (
+                <img
+                  src={imagePreviewUrl}
+                  alt="Selected upload preview"
+                  className="w-full h-64 object-cover rounded-xl"
+                />
+              ) : (
+                <div className="w-full h-64 rounded-xl border border-dashed border-gray-300 flex items-center justify-center text-sm text-gray-400 bg-white">
+                  Image preview
                 </div>
-              ) : hasVisionResult && !isAnalyzingImage && !aiTaggingError ? (
-                <div className="text-xs text-gray-400 mt-3">No AI tags detected for this image.</div>
-              ) : null}
+              )}
             </div>
-          ) : null}
+            {isUploadingImage ? <div className="text-xs text-gray-500 mt-2">Uploading image...</div> : null}
+          </div>
 
+          {/* B. Title */}
           <div>
             <label htmlFor="upload-note" className="text-sm font-medium text-gray-500 block mb-2">
               Title
@@ -422,6 +369,22 @@ export default function UploadPage() {
             />
           </div>
 
+          {/* C. Editorial */}
+          <div>
+            <label htmlFor="upload-editorial" className="text-sm font-medium text-gray-500 block mb-2">
+              Editorial
+            </label>
+            <textarea
+              id="upload-editorial"
+              value={editorialText}
+              onChange={(e) => setEditorialText(e.target.value)}
+              placeholder="Write your editorial text, or generate one with AI."
+              className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+              rows={6}
+            />
+          </div>
+
+          {/* D. Generate with AI button + helper */}
           <div>
             <button
               type="button"
@@ -438,21 +401,52 @@ export default function UploadPage() {
             <div className="text-xs text-gray-500 mt-2">
               Use AI to generate an editorial description from the image and tags.
             </div>
-            <div className="mt-4">
-              <label htmlFor="upload-editorial" className="text-sm font-medium text-gray-500 block mb-2">
-                Editorial
-              </label>
-              <textarea
-                id="upload-editorial"
-                value={editorialText}
-                onChange={(e) => setEditorialText(e.target.value)}
-                placeholder="Write your editorial text, or generate one with AI."
-                className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
-                rows={6}
-              />
-            </div>
           </div>
 
+          {/* E. AI Suggested Tags */}
+          {showAiSuggestedSection ? (
+            <div className="rounded-2xl border border-gray-200 bg-white p-3">
+              <div className="text-sm font-medium text-gray-500 mb-2">AI Suggested Tags</div>
+              {isAnalyzingImage ? <div className="text-xs text-gray-500 mb-2">Analyzing image...</div> : null}
+              {aiTaggingError ? <div className="text-xs text-red-600 mb-2">AI tagging failed</div> : null}
+
+              {hasDetectedMetadata ? (
+                <div className="space-y-1">
+                  {detectedBrand ? <div className="text-xs text-gray-500">Brand: {detectedBrand}</div> : null}
+                  {detectedObjectType ? <div className="text-xs text-gray-500">Object Type: {detectedObjectType}</div> : null}
+                  {detectedModel ? <div className="text-xs text-gray-500">Model: {detectedModel}</div> : null}
+                  {detectedStyle ? <div className="text-xs text-gray-500">Style: {detectedStyle}</div> : null}
+                  {detectedEra ? <div className="text-xs text-gray-500">Era: {detectedEra}</div> : null}
+                </div>
+              ) : null}
+
+              {suggestedTags.length > 0 ? (
+                <>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {suggestedTags.map((tag) => {
+                      const on = selectedTags.includes(tag);
+                      return (
+                        <button
+                          key={`ai-${tag}`}
+                          type="button"
+                          onClick={() => toggleTag(tag)}
+                          className={`px-3 py-1.5 rounded-full text-sm border ${
+                            on
+                              ? "bg-black text-white border-black"
+                              : "bg-white text-black border-gray-300"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* F. Tags */}
           <div>
             <div className="flex items-center justify-between mb-3">
               <div className="text-sm font-medium text-gray-500">Tags</div>
@@ -493,23 +487,31 @@ export default function UploadPage() {
               </div>
             ) : null}
 
-            <div className="space-y-5 mt-4">
+            <div className="space-y-3 mt-4">
               {OPTIONS.map((section) => {
-                  const sectionItems = section.items.filter((tag) =>
-                    allTags.some((item) => normalizeForMatch(item) === normalizeForMatch(tag))
-                  );
-                  const filteredItems = normalizedQuery
-                    ? sectionItems.filter((tag) =>
-                        normalizeForMatch(tag).includes(normalizedQuery)
-                      )
-                    : sectionItems;
+                const sectionItems = section.items.filter((tag) =>
+                  allTags.some((item) => normalizeForMatch(item) === normalizeForMatch(tag)),
+                );
+                const filteredItems = normalizedQuery
+                  ? sectionItems.filter((tag) => normalizeForMatch(tag).includes(normalizedQuery))
+                  : sectionItems;
 
-                  if (!filteredItems.length) return null;
+                if (!filteredItems.length) return null;
 
-                  return (
-                    <div key={section.group}>
-                      <div className="text-sm font-medium text-gray-500 mb-3">{section.group}</div>
-                      <div className="flex flex-wrap gap-2">
+                const isOpen = Boolean(openGroups[section.group]);
+
+                return (
+                  <div key={section.group} className="border border-gray-200 rounded-xl bg-white">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(section.group)}
+                      className="w-full px-3 py-2 flex items-center justify-between text-sm text-gray-700"
+                    >
+                      <span className="font-medium">{section.group}</span>
+                      <span className="text-xs text-gray-500">{isOpen ? "▲" : "▼"}</span>
+                    </button>
+                    {isOpen ? (
+                      <div className="px-3 pb-3 flex flex-wrap gap-2">
                         {filteredItems.map((tag) => {
                           const on = selectedTags.includes(tag);
                           return (
@@ -528,8 +530,9 @@ export default function UploadPage() {
                           );
                         })}
                       </div>
-                    </div>
-                  );
+                    ) : null}
+                  </div>
+                );
               })}
 
               {(() => {
@@ -537,16 +540,12 @@ export default function UploadPage() {
                 const baseSet: Set<string> = new Set(baseItems);
                 const customItems = allTags.filter((tag) => !baseSet.has(tag));
                 const filteredCustom = normalizedQuery
-                  ? customItems.filter((tag) =>
-                      normalizeForMatch(tag).includes(normalizedQuery)
-                    )
+                  ? customItems.filter((tag) => normalizeForMatch(tag).includes(normalizedQuery))
                   : customItems;
-
                 if (!filteredCustom.length) return null;
-
                 return (
-                  <div>
-                    <div className="text-sm font-medium text-gray-500 mb-3">Custom</div>
+                  <div className="border border-gray-200 rounded-xl bg-white p-3">
+                    <div className="text-sm font-medium text-gray-500 mb-2">Custom</div>
                     <div className="flex flex-wrap gap-2">
                       {filteredCustom.map((tag) => {
                         const on = selectedTags.includes(tag);
@@ -554,14 +553,14 @@ export default function UploadPage() {
                           <button
                             key={tag}
                             type="button"
-                          onClick={() => toggleTag(tag)}
-                          className={`px-3 py-2 rounded-full text-sm border ${
-                            on
-                              ? "bg-black text-white border-black"
-                              : "bg-white text-black border-gray-300"
-                          }`}
-                        >
-                          {tag}
+                            onClick={() => toggleTag(tag)}
+                            className={`px-3 py-2 rounded-full text-sm border ${
+                              on
+                                ? "bg-black text-white border-black"
+                                : "bg-white text-black border-gray-300"
+                            }`}
+                          >
+                            {tag}
                           </button>
                         );
                       })}
@@ -569,19 +568,12 @@ export default function UploadPage() {
                   </div>
                 );
               })()}
-              {suggestedTags.length ? (
-                <div>
-                  <div className="text-sm font-medium text-gray-500 mb-3">AI Suggested</div>
-                  <div className="text-xs text-gray-400">
-                    Suggested tags are auto-selected; tap a selected pill above to remove any.
-                  </div>
-                </div>
-              ) : null}
 
               {allTags.length === 0 ? <div className="text-sm text-gray-400">No tags available.</div> : null}
             </div>
           </div>
 
+          {/* G. Post */}
           <button
             type="submit"
             disabled={!hasReadyForm}
@@ -589,7 +581,7 @@ export default function UploadPage() {
               hasReadyForm ? "bg-black text-white" : "bg-gray-200 text-gray-500"
             }`}
           >
-            {isSubmitting ? "Creating..." : "Create editorial card"}
+            {isSubmitting ? "Posting..." : "Post"}
           </button>
         </form>
       </div>
