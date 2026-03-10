@@ -125,6 +125,19 @@ export default function PersonaFeed() {
   const seenTopicsRef = useRef<string[]>([]);
   const seenTagsRef = useRef<string[]>([]);
 
+  function dedupeById(cardsList: Card[], max = 200): Card[] {
+    const seen = new Set<string>();
+    const out: Card[] = [];
+    for (const card of cardsList) {
+      const key = String(card?.id || "").trim();
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(card);
+      if (out.length >= max) break;
+    }
+    return out;
+  }
+
   const active = useMemo(() => cards[index], [cards, index]);
   const whyThis = useMemo(() => {
     if (!active) return "";
@@ -245,7 +258,7 @@ export default function PersonaFeed() {
       card.tags?.some((tag) => relevancePool.has(String(tag).toLowerCase().trim())),
     );
 
-    const uploadsWithPriority = [...newestUpload, ...matchingUploads.slice(0, 2)];
+    const uploadsWithPriority = [...newestUpload, ...matchingUploads.slice(0, 1)];
     const seen = new Set<string>();
     return uploadsWithPriority.filter((card) => {
       const key = String(card.id || "");
@@ -255,9 +268,15 @@ export default function PersonaFeed() {
     });
   }
 
-  async function fetchBatch(nextCursor: number, mode: "replace" | "append", savedAll?: Card[]) {
+  async function fetchBatch(
+    nextCursor: number,
+    mode: "replace" | "append",
+    savedAll?: Card[],
+    options?: { limit?: number },
+  ) {
     const tastes = readJSON<string[]>("persona:taste", []);
     const savedSource = savedAll ?? readJSON<Card[]>("persona:saved", []);
+    const batchLimit = Math.max(1, Math.min(Number(options?.limit || (mode === "replace" ? 5 : 12)), 12));
     const saved: SavedSignal[] = Array.isArray(savedSource)
       ? savedSource.slice(0, 30).map((c) => ({ caption_short: c.caption_short, tags: c.tags }))
       : [];
@@ -287,7 +306,8 @@ export default function PersonaFeed() {
     }
 
     if (Array.isArray(data.cards) && data.cards.length) {
-      const newCards: Card[] = data.cards.map((card: Card, i: number) => ({
+      const rawBatch = data.cards.slice(0, batchLimit);
+      const newCards: Card[] = rawBatch.map((card: Card, i: number) => ({
         ...card,
         id: String(card.id || `${nextCursor}-${i + 1}`),
       }));
@@ -305,15 +325,7 @@ export default function PersonaFeed() {
         mode === "replace"
           ? [...uploadCards, ...newCards]
           : newCards;
-      const finalDeduped = (() => {
-        const seen = new Set<string>();
-        return finalCards.filter((card) => {
-          const key = String(card.id || "");
-          if (!key || seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        });
-      })();
+      const finalDeduped = dedupeById(finalCards, mode === "replace" ? batchLimit + 2 : batchLimit);
       const safeCards = finalDeduped.map((card) => {
         if (
           card?.source === "community" ||
@@ -343,15 +355,16 @@ export default function PersonaFeed() {
       updateFeedCache(safeCards, savedSource);
 
       if (mode === "replace") {
-        setCards(safeCards);
-        addSeenFromCards(safeCards);
+        const replaceCards = dedupeById(safeCards, batchLimit);
+        setCards(replaceCards);
+        addSeenFromCards(replaceCards);
         setIndex(0);
         setExpanded(false);
         cursorRef.current = nextCursor;
         setCursor(nextCursor);
       } else {
         const existingIds = new Set(cardsRef.current.map((c) => c.id));
-        const deduped = newCards.filter((c) => !existingIds.has(c.id));
+        const deduped = dedupeById(newCards, batchLimit).filter((c) => !existingIds.has(c.id));
         setCards((prev) => [...prev, ...deduped]);
         addSeenFromCards(deduped);
         cursorRef.current = nextCursor;
@@ -394,8 +407,19 @@ export default function PersonaFeed() {
       setIsLoading(true);
       const savedAll = readJSON<Card[]>("persona:saved", []);
       setSavedIds(savedAll.map((c) => c.id));
+
+      const cached = readJSON<Card[]>("persona:feed_cache", []);
+      const fastCards = dedupeById(cached, 5);
+      if (fastCards.length) {
+        setCards(fastCards);
+        addSeenFromCards(fastCards);
+        setIndex(0);
+        setExpanded(false);
+        setIsLoading(false);
+      }
+
       try {
-        await fetchBatch(0, "replace", savedAll);
+        await fetchBatch(0, "replace", savedAll, { limit: 5 });
       } finally {
         setIsLoading(false);
       }
