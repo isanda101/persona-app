@@ -70,8 +70,16 @@ function readCardsFromKey(key: string): CardItem[] {
 }
 
 function creatorLine(card: CardItem) {
-  if (card.source === "community") return "by @you";
-  return "Persona Editorial";
+  const rawHandle = String(card.creator_handle || "").trim();
+  if (rawHandle) {
+    return `by ${rawHandle.startsWith("@") ? rawHandle : `@${rawHandle}`}`;
+  }
+  if (card.source === "editorial") return "by Persona";
+  return "by @you";
+}
+
+function sourceLabel(card: CardItem) {
+  return card.source === "community" ? "Persona Community" : "Persona Editorial";
 }
 
 export default function PostDetailPage() {
@@ -182,16 +190,14 @@ export default function PostDetailPage() {
           <img
             src={post.image_url}
             alt={title}
-            className="w-full h-auto max-h-[60vh] object-cover"
+            className="w-full h-auto max-h-[60vh] object-contain bg-gray-50"
           />
           <div className="p-4">
             <div className="text-xl font-semibold">{title}</div>
             <div className="mt-1 text-xs text-gray-500">{creatorLine(post)}</div>
-            {post.source === "community" ? (
-              <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
-                Community
-              </div>
-            ) : null}
+            <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
+              {sourceLabel(post)}
+            </div>
 
             <div className="mt-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 text-gray-600">
