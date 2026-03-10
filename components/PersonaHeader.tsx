@@ -5,19 +5,18 @@ import { useRouter } from "next/navigation";
 
 type PersonaHeaderProps = {
   showBack?: boolean;
-  showSearch?: boolean;
   className?: string;
 };
 
 export default function PersonaHeader({
   showBack = false,
-  showSearch = false,
   className = "",
 }: PersonaHeaderProps) {
   const router = useRouter();
+  const alignmentClass = showBack ? "justify-start" : "justify-center";
 
   return (
-    <div className={`flex items-center justify-between ${className}`.trim()}>
+    <div className={`flex items-center ${alignmentClass} ${className}`.trim()}>
       <div className="flex items-center gap-3">
         {showBack ? (
           <button
@@ -33,11 +32,6 @@ export default function PersonaHeader({
           Persona
         </Link>
       </div>
-      {showSearch ? (
-        <Link href="/search" className="text-sm text-gray-700 underline">
-          Search
-        </Link>
-      ) : null}
     </div>
   );
 }

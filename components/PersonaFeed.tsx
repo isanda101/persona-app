@@ -632,7 +632,7 @@ export default function PersonaFeed() {
       {/* Top nav */}
       <div className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90">
         <div className="mx-auto flex h-full w-full max-w-md items-center px-4">
-          <PersonaHeader showSearch className="w-full" />
+          <PersonaHeader className="w-full" />
         </div>
       </div>
 
