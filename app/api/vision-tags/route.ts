@@ -79,6 +79,10 @@ Requirements:
 - Be conservative if uncertain.
 - Prefer real object names and categories over vague descriptions.
 - note must be 1-2 sentences, editorial but concise.
+- If you cannot confidently identify brand or model, still return object_type, style, era if possible, and 3-6 relevant generic tags.
+- Never return all fields empty unless the image truly cannot be understood.
+- Tags should be useful for Persona communities. Good examples include:
+  Watches, Dress Watch, Leather Strap, Rectangular Case, Vintage, Sportswear, Tracksuit, Denim, Chair, Interiors, Porsche, Ferrari.
 JSON ONLY.
 `;
 

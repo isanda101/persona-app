@@ -42,6 +42,7 @@ export default function UploadPage() {
   const [suggestedNote, setSuggestedNote] = useState("");
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [aiTaggingError, setAiTaggingError] = useState("");
+  const [hasVisionResult, setHasVisionResult] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -132,6 +133,7 @@ export default function UploadPage() {
     setIsSubmitting(true);
     setError("");
     setAiTaggingError("");
+    setHasVisionResult(false);
 
     try {
       const blob = await upload(imageFile.name, imageFile, {
@@ -153,13 +155,13 @@ export default function UploadPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ image_url: blobUrl }),
         });
+        const visionData = await visionRes.json();
+        console.log("visionData", visionData);
+        setHasVisionResult(true);
 
         if (!visionRes.ok) {
           setAiTaggingError("AI tagging failed");
         } else {
-          const visionData = await visionRes.json();
-          console.log("vision result", visionData);
-
           const visionTags = Array.isArray(visionData?.tags)
             ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
             : [];
@@ -184,6 +186,7 @@ export default function UploadPage() {
         }
       } catch {
         setAiTaggingError("AI tagging failed");
+        setHasVisionResult(true);
       } finally {
         setIsAnalyzingImage(false);
       }
@@ -263,6 +266,7 @@ export default function UploadPage() {
           </div>
 
           {(isAnalyzingImage ||
+            hasVisionResult ||
             aiTaggingError ||
             detectedBrand ||
             detectedObjectType ||
@@ -315,6 +319,8 @@ export default function UploadPage() {
                     );
                   })}
                 </div>
+              ) : hasVisionResult && !isAnalyzingImage && !aiTaggingError ? (
+                <div className="text-xs text-gray-400 mt-3">No AI tags detected for this image.</div>
               ) : null}
             </div>
           ) : null}
