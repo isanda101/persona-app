@@ -223,8 +223,8 @@ export default function SavedPage() {
   const [collectedItems, setCollectedItems] = useState<CardItem[]>(initial.collected);
   const [postedItems, setPostedItems] = useState<CardItem[]>(initial.posted);
   const [likedIds, setLikedIds] = useState<string[]>(initial.likedIds);
-  const [likedCardCache] = useState<CardItem[]>(initial.likedCards);
-  const [cachedItems] = useState<CardItem[]>(initial.cached);
+  const [likedCardCache, setLikedCardCache] = useState<CardItem[]>(initial.likedCards);
+  const [cachedItems, setCachedItems] = useState<CardItem[]>(initial.cached);
 
   const likedItems = useMemo(() => {
     const pool = dedupeById([
@@ -255,11 +255,66 @@ export default function SavedPage() {
   };
 
   const removePosted = (card: CardItem) => {
+    const ok = window.confirm("Delete this post? This will remove it from Persona.");
+    if (!ok) return;
+
+    const id = card.id;
+
+    // Remove from uploads.
     setPostedItems((prev) => {
-      const next = prev.filter((item) => item.id !== card.id);
+      const next = prev.filter((item) => item.id !== id);
       localStorage.setItem("persona:uploads", JSON.stringify(next));
       return next;
     });
+
+    // Remove from collection keys used by + Collection.
+    setCollectedItems((prev) => {
+      const next = prev.filter((item) => item.id !== id);
+      localStorage.setItem("persona:saved", JSON.stringify(next));
+      return next;
+    });
+    const rawCollection = safeParseJSON<unknown[]>(localStorage.getItem("persona:collection"), []);
+    if (Array.isArray(rawCollection)) {
+      const nextCollection = rawCollection.filter((entry) => {
+        const normalized = normalizeCard(entry);
+        return normalized ? normalized.id !== id : true;
+      });
+      localStorage.setItem("persona:collection", JSON.stringify(nextCollection));
+    }
+
+    // Remove from likes (object or array of ids/cards).
+    setLikedIds((prev) => {
+      const nextIds = prev.filter((likedId) => likedId !== id);
+      const rawLikes = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
+      let nextLikes: unknown;
+      if (Array.isArray(rawLikes)) {
+        nextLikes = rawLikes.filter((entry) => {
+          if (typeof entry === "string") return entry !== id;
+          const normalized = normalizeCard(entry);
+          return normalized ? normalized.id !== id : true;
+        });
+      } else if (rawLikes && typeof rawLikes === "object") {
+        const nextObj = { ...(rawLikes as Record<string, unknown>) };
+        delete nextObj[id];
+        nextLikes = nextObj;
+      } else {
+        nextLikes = Object.fromEntries(nextIds.map((likedId) => [likedId, true]));
+      }
+      localStorage.setItem("persona:likes", JSON.stringify(nextLikes));
+      return nextIds;
+    });
+
+    // Remove from cached liked card pool and feed cache.
+    setLikedCardCache((prev) => prev.filter((item) => item.id !== id));
+    setCachedItems((prev) => prev.filter((item) => item.id !== id));
+    const rawFeedCache = safeParseJSON<unknown[]>(localStorage.getItem("persona:feed_cache"), []);
+    if (Array.isArray(rawFeedCache)) {
+      const nextFeedCache = rawFeedCache.filter((entry) => {
+        const normalized = normalizeCard(entry);
+        return normalized ? normalized.id !== id : true;
+      });
+      localStorage.setItem("persona:feed_cache", JSON.stringify(nextFeedCache));
+    }
   };
 
   return (
