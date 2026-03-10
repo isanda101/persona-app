@@ -508,6 +508,9 @@ export default function PersonaFeed() {
         <a href="/saved" className="text-sm underline">
           Collection
         </a>
+        <a href="/search" className="text-sm underline">
+          Search
+        </a>
         <a href="/upload" className="text-sm underline">
           Upload
         </a>
