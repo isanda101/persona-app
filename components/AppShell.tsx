@@ -23,13 +23,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   return (
     <>
-      <div
-        className={
-          showBottomNav
-            ? "pb-24 md:pb-[calc(4rem+env(safe-area-inset-bottom)+1rem)]"
-            : ""
-        }
-      >
+      <div className={showBottomNav ? "pb-[calc(4rem+env(safe-area-inset-bottom)+1rem)]" : ""}>
         {children}
       </div>
       {showBottomNav ? <BottomNav /> : null}

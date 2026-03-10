@@ -630,7 +630,7 @@ export default function PersonaFeed() {
   return (
     <div className="w-screen min-h-[100svh] bg-white text-black">
       {/* Top nav */}
-      <div className="sticky top-0 z-40 flex items-center justify-center h-14 backdrop-blur-md bg-white/70 border-b border-gray-200">
+      <div className="fixed top-0 left-0 right-0 z-50 h-16 border-b border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90">
         <div className="mx-auto flex h-full w-full max-w-md items-center px-4">
           <PersonaHeader className="w-full" />
         </div>
@@ -697,7 +697,7 @@ export default function PersonaFeed() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-md px-4 pt-16 pb-24 md:pt-20 md:pb-28">
+      <main className="mx-auto w-full max-w-md px-4 pt-20 pb-28">
         <div className="h-auto md:h-[calc(100svh-9rem)]">
           <AnimatePresence mode="wait">
             <motion.div
