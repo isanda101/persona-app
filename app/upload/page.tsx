@@ -321,7 +321,7 @@ export default function UploadPage() {
     <div className="min-h-screen bg-white text-black px-5 py-8">
       <div className="max-w-md mx-auto">
         <div className="text-sm text-gray-500">Persona</div>
-        <h1 className="text-2xl font-semibold mt-2">Upload</h1>
+        <h1 className="text-2xl font-semibold mt-2">Create Editorial Card</h1>
         <p className="text-gray-600 mt-2">Create an editorial card from an image and your selected taste tags.</p>
         {error ? <p className="text-sm text-red-600 mt-3">{error}</p> : null}
 
