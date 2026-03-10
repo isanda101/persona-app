@@ -103,9 +103,11 @@ export default function PersonaFeed() {
   const [toast, setToast] = useState<string | null>(null);
   const [likes, setLikes] = useState<Record<string, boolean>>({});
   const [isLiked, setIsLiked] = useState(false);
+  const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const loadingMoreRef = useRef(false);
+  const heartBurstTimerRef = useRef<number | null>(null);
   const cursorRef = useRef(0);
   const cardsRef = useRef<Card[]>([]);
   const seenTopicsRef = useRef<string[]>([]);
@@ -144,6 +146,14 @@ export default function PersonaFeed() {
     }
     setIsLiked(Boolean(likes[active.id]));
   }, [active, likes]);
+
+  useEffect(() => {
+    return () => {
+      if (heartBurstTimerRef.current) {
+        window.clearTimeout(heartBurstTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     cardsRef.current = cards;
@@ -435,6 +445,30 @@ export default function PersonaFeed() {
     });
   }
 
+  function likeCard(card: Card) {
+    setLikes((prev) => {
+      if (prev[card.id]) return prev;
+      const next = { ...prev, [card.id]: true };
+      writeJSON("persona:likes", next);
+      setIsLiked(true);
+      return next;
+    });
+  }
+
+  function handleImageDoubleTap(card: Card) {
+    if (!isLiked) {
+      likeCard(card);
+    }
+    setShowHeartBurst(true);
+    if (heartBurstTimerRef.current) {
+      window.clearTimeout(heartBurstTimerRef.current);
+    }
+    heartBurstTimerRef.current = window.setTimeout(() => {
+      setShowHeartBurst(false);
+      heartBurstTimerRef.current = null;
+    }, 700);
+  }
+
   async function handleShare() {
     const shareUrl = window.location.href;
     if (navigator.share) {
@@ -590,13 +624,29 @@ export default function PersonaFeed() {
           >
             <div className="h-full flex flex-col justify-center px-4">
               <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh] flex flex-col">
-                <div className="relative w-full aspect-[4/5] overflow-hidden bg-gray-100">
+                <div
+                  className="relative w-full aspect-[4/5] overflow-hidden bg-gray-100"
+                  onDoubleClick={() => handleImageDoubleTap(active)}
+                >
                   <img
                     src={active.image_url}
                     className="object-cover w-full h-full"
                     alt=""
                   />
                   <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+                  <AnimatePresence>
+                    {showHeartBurst ? (
+                      <motion.div
+                        initial={{ scale: 0.6, opacity: 0 }}
+                        animate={{ scale: 1, opacity: 1 }}
+                        exit={{ scale: 1.2, opacity: 0 }}
+                        transition={{ duration: 0.35 }}
+                        className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                      >
+                        <div className="text-white text-6xl drop-shadow-lg select-none">♥</div>
+                      </motion.div>
+                    ) : null}
+                  </AnimatePresence>
                 </div>
 
                 <div className="p-4 flex-1 overflow-hidden">
