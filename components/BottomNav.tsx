@@ -48,8 +48,8 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 h-16 border-t border-gray-200 bg-white">
-      <div className="mx-auto flex h-full max-w-md items-center justify-around px-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-gray-200 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/90 pb-[env(safe-area-inset-bottom)]">
+      <div className="mx-auto flex h-16 max-w-md items-center justify-around px-2">
         {ITEMS.map(({ label, href, Icon, isActive }) => {
           const active = isActive(pathname);
           return (
