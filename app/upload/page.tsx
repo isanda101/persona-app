@@ -371,9 +371,23 @@ export default function UploadPage() {
 
           {/* C. Editorial */}
           <div>
-            <label htmlFor="upload-editorial" className="text-sm font-medium text-gray-500 block mb-2">
-              Editorial
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label htmlFor="upload-editorial" className="text-sm font-medium text-gray-500">
+                Editorial
+              </label>
+              <button
+                type="button"
+                onClick={generateWithAI}
+                disabled={isGeneratingEditorial || !uploadedImageUrl}
+                className={`text-sm px-3 py-1.5 rounded-lg border ${
+                  !isGeneratingEditorial && uploadedImageUrl
+                    ? "bg-gray-100 text-gray-700 border-gray-300"
+                    : "bg-gray-100 text-gray-400 border-gray-200"
+                }`}
+              >
+                {isGeneratingEditorial ? "Generating..." : "Generate with AI"}
+              </button>
+            </div>
             <textarea
               id="upload-editorial"
               value={editorialText}
@@ -382,22 +396,6 @@ export default function UploadPage() {
               className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
               rows={6}
             />
-          </div>
-
-          {/* D. Generate with AI button + helper */}
-          <div>
-            <button
-              type="button"
-              onClick={generateWithAI}
-              disabled={isGeneratingEditorial || !uploadedImageUrl}
-              className={`px-4 py-2 rounded-xl text-sm font-medium ${
-                !isGeneratingEditorial && uploadedImageUrl
-                  ? "bg-black text-white"
-                  : "bg-gray-200 text-gray-500"
-              }`}
-            >
-              {isGeneratingEditorial ? "Generating..." : "Generate with AI"}
-            </button>
             <div className="text-xs text-gray-500 mt-2">
               Use AI to generate an editorial description from the image and tags.
             </div>
