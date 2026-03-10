@@ -170,6 +170,85 @@ function safeArrayStrings(v: any, max = 20): string[] {
   return v.map((x) => String(x)).filter(Boolean).slice(0, max);
 }
 
+const BRAND_HINTS = [
+  "Rolex",
+  "Nike",
+  "Gucci",
+  "Louis Vuitton",
+  "Prada",
+  "Tommy Hilfiger",
+  "Ralph Lauren",
+  "Supreme",
+  "BAPE",
+  "Stüssy",
+  "Off-White",
+  "Porsche",
+  "Ferrari",
+  "BMW",
+  "Mercedes",
+  "IKEA",
+  "Eames",
+  "Cartier",
+  "Omega",
+];
+
+const OBJECT_HINTS = [
+  "Tracksuit",
+  "Jacket",
+  "Sneakers",
+  "Shoe",
+  "Bag",
+  "Watch",
+  "Chair",
+  "Sofa",
+  "Car",
+  "Jeans",
+  "Denim",
+  "Coat",
+  "Boots",
+  "Table",
+];
+
+function toTitleCase(value: string) {
+  return value
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+}
+
+function buildUploadTopic(note: string, tags: string[]) {
+  const cleanTags = tags.map((tag) => String(tag || "").trim()).filter(Boolean);
+  const noteText = String(note || "").trim();
+
+  const findBrand = () =>
+    BRAND_HINTS.find((brand) =>
+      cleanTags.some((tag) => tag.toLowerCase() === brand.toLowerCase() || tag.toLowerCase().includes(brand.toLowerCase())),
+    );
+
+  const findObject = () =>
+    OBJECT_HINTS.find((obj) =>
+      cleanTags.some((tag) => tag.toLowerCase() === obj.toLowerCase() || tag.toLowerCase().includes(obj.toLowerCase())),
+    );
+
+  const brand = findBrand();
+  const objectType = findObject();
+
+  if (brand && objectType) {
+    const candidateModel = cleanTags.find((tag) => {
+      const t = tag.toLowerCase();
+      return !t.includes(brand.toLowerCase()) && !t.includes(objectType.toLowerCase()) && tag.length >= 3;
+    });
+    if (candidateModel) return `${brand} ${toTitleCase(candidateModel)}`;
+    return `${brand} ${objectType}`;
+  }
+
+  if (noteText) return noteText;
+  if (cleanTags.length >= 2) return `${toTitleCase(cleanTags[0])} ${toTitleCase(cleanTags[1])}`;
+  if (cleanTags.length === 1) return toTitleCase(cleanTags[0]);
+  return "Community Upload";
+}
+
 function deriveImageQuery(topic: string, tags: string[]) {
   const tagText = tags.join(" ").toLowerCase();
   const topicText = topic.toLowerCase();
@@ -213,9 +292,7 @@ export async function POST(req: Request) {
     const { note, tags, image_url } = body.upload;
     const safeTags = safeArrayStrings(tags, 12);
     const safeNote = typeof note === "string" ? note.trim() : "";
-    const topic =
-      safeNote ||
-      (safeTags.length ? safeTags.join(" ") : "Community Upload");
+    const topic = buildUploadTopic(safeNote, safeTags);
 
     const editorialPrompt = `
 Write an editorial style description about the following object.
@@ -223,7 +300,7 @@ Write an editorial style description about the following object.
 Topic: ${topic}
 Tags: ${safeTags.join(", ")}
 
-Write like a design / fashion magazine.
+Write like a design / fashion magazine with an object-aware, collector-aware voice.
 
 Requirements:
 - 120 to 180 words

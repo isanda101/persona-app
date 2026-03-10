@@ -33,7 +33,13 @@ export default function UploadPage() {
   const [availableTags, setAvailableTags] = useState<string[]>(
     Array.from(new Set(OPTIONS.flatMap((section) => section.items)))
   );
-  const [aiSuggestedTags] = useState<string[]>([]);
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [detectedObjectType, setDetectedObjectType] = useState("");
+  const [detectedBrand, setDetectedBrand] = useState("");
+  const [detectedModel, setDetectedModel] = useState("");
+  const [detectedStyle, setDetectedStyle] = useState("");
+  const [detectedEra, setDetectedEra] = useState("");
+  const [suggestedNote, setSuggestedNote] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -50,13 +56,6 @@ export default function UploadPage() {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     };
   }, [imagePreviewUrl]);
-
-  useEffect(() => {
-    if (!aiSuggestedTags.length) return;
-
-    setAvailableTags((prev) => Array.from(new Set([...prev, ...aiSuggestedTags])));
-    setSelectedTags((prev) => Array.from(new Set([...prev, ...aiSuggestedTags])));
-  }, [aiSuggestedTags]);
 
   const onImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -80,6 +79,20 @@ export default function UploadPage() {
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .replace(/\s+/g, " ")
       .trim();
+
+  const mergeCaseInsensitive = (base: string[], incoming: string[]) => {
+    const out: string[] = [...base];
+    const seen = new Set(base.map((item) => normalizeForMatch(item)));
+    for (const raw of incoming) {
+      const item = String(raw || "").trim();
+      if (!item) continue;
+      const norm = normalizeForMatch(item);
+      if (seen.has(norm)) continue;
+      seen.add(norm);
+      out.push(item);
+    }
+    return out;
+  };
 
   const normalizedQueryRaw = tagQuery.trim();
   const normalizedQuery = normalizeForMatch(normalizedQueryRaw);
@@ -127,13 +140,45 @@ export default function UploadPage() {
         throw new Error("No image URL returned from upload");
       }
 
+      const visionRes = await fetch("/api/vision-tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: blobUrl }),
+      });
+      if (!visionRes.ok) {
+        const errText = await visionRes.text();
+        throw new Error(errText || "Vision tag suggestion failed");
+      }
+      const visionData = await visionRes.json();
+      const visionTags = Array.isArray(visionData?.tags)
+        ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
+        : [];
+      const visionNote = String(visionData?.note || "").trim();
+
+      setSuggestedTags(visionTags);
+      setDetectedObjectType(String(visionData?.object_type || ""));
+      setDetectedBrand(String(visionData?.brand || ""));
+      setDetectedModel(String(visionData?.model || ""));
+      setDetectedStyle(String(visionData?.style || ""));
+      setDetectedEra(String(visionData?.era || ""));
+      setSuggestedNote(visionNote);
+
+      const mergedTags = mergeCaseInsensitive(selectedTags, visionTags);
+      setSelectedTags(mergedTags);
+      setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
+
+      const noteToUse = note.trim() ? note : visionNote;
+      if (!note.trim() && visionNote) {
+        setNote(visionNote);
+      }
+
       const cardRes = await fetch("/api/generate-cards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           upload: {
-            note,
-            tags: selectedTags,
+            note: noteToUse,
+            tags: mergedTags,
             image_url: blobUrl,
           },
         }),
@@ -200,6 +245,55 @@ export default function UploadPage() {
               </div>
             )}
           </div>
+
+          {(detectedBrand ||
+            detectedObjectType ||
+            detectedModel ||
+            detectedStyle ||
+            detectedEra ||
+            suggestedTags.length) ? (
+            <div className="rounded-2xl border border-gray-200 bg-white p-3">
+              <div className="text-sm font-medium text-gray-500 mb-2">AI Suggested Tags</div>
+
+              {detectedBrand ? (
+                <div className="text-xs text-gray-500">Brand: {detectedBrand}</div>
+              ) : null}
+              {detectedObjectType ? (
+                <div className="text-xs text-gray-500">Object Type: {detectedObjectType}</div>
+              ) : null}
+              {detectedModel ? (
+                <div className="text-xs text-gray-500">Model: {detectedModel}</div>
+              ) : null}
+              {detectedStyle ? (
+                <div className="text-xs text-gray-500">Style: {detectedStyle}</div>
+              ) : null}
+              {detectedEra ? (
+                <div className="text-xs text-gray-500">Era: {detectedEra}</div>
+              ) : null}
+
+              {suggestedTags.length ? (
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {suggestedTags.map((tag) => {
+                    const on = selectedTags.includes(tag);
+                    return (
+                      <button
+                        key={`ai-${tag}`}
+                        type="button"
+                        onClick={() => toggleTag(tag)}
+                        className={`px-3 py-2 rounded-full text-sm border ${
+                          on
+                            ? "bg-black text-white border-black"
+                            : "bg-white text-black border-gray-300"
+                        }`}
+                      >
+                        {tag}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div>
             <label htmlFor="upload-note" className="text-sm font-medium text-gray-500 block mb-2">
@@ -331,7 +425,7 @@ export default function UploadPage() {
                   </div>
                 );
               })()}
-              {aiSuggestedTags.length ? (
+              {suggestedTags.length ? (
                 <div>
                   <div className="text-sm font-medium text-gray-500 mb-3">AI Suggested</div>
                   <div className="text-xs text-gray-400">
