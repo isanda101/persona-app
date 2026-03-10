@@ -712,7 +712,7 @@ export default function PersonaFeed() {
               <div className="h-auto md:h-full flex flex-col">
                 <div className="rounded-2xl shadow-xl bg-white h-auto overflow-visible md:h-full flex flex-col">
                 <div
-                  className="relative w-full aspect-[4/4.5] md:aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
+                  className="relative w-full aspect-[4/4.2] md:aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
                   onDoubleClick={() => handleImageDoubleTap(active)}
                 >
                   <img

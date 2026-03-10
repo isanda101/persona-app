@@ -37,7 +37,7 @@ export default function AppShell({ children }: AppShellProps) {
       <main
         className={
           showBottomNav
-            ? "pt-2 pb-24"
+            ? "pb-24"
             : ""
         }
       >
