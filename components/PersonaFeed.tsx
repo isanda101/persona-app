@@ -589,8 +589,8 @@ export default function PersonaFeed() {
             transition={{ duration: 0.2 }}
           >
             <div className="h-full flex flex-col justify-center px-4">
-              <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh]">
-                <div className={`relative w-full bg-gray-100 ${expanded ? "h-1/2" : "h-2/3"}`}>
+              <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-[78vh] flex flex-col">
+                <div className="relative w-full aspect-[4/5] overflow-hidden bg-gray-100">
                   <img
                     src={active.image_url}
                     className="object-cover w-full h-full"
@@ -599,7 +599,7 @@ export default function PersonaFeed() {
                   <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
                 </div>
 
-                <div className={`p-4 ${expanded ? "h-1/2" : "h-1/3"}`}>
+                <div className="p-4 flex-1 overflow-hidden">
                   <div className="text-xs text-gray-500">
                     {active.tags.slice(0, 5).join(" • ")}
                   </div>
