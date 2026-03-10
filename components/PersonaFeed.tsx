@@ -698,11 +698,11 @@ export default function PersonaFeed() {
       )}
 
       <main className="mx-auto w-full max-w-md px-4 pt-20 pb-28">
-        <div className="h-[calc(100svh-9rem)]">
+        <div className="h-auto md:h-[calc(100svh-9rem)]">
           <AnimatePresence mode="wait">
             <motion.div
               key={active.id}
-              className="w-full h-full"
+              className="w-full h-auto md:h-full"
               style={{ touchAction: "none" }}
               drag="y"
               dragConstraints={{ top: 0, bottom: 0 }}
@@ -717,10 +717,10 @@ export default function PersonaFeed() {
               exit={{ y: -50, opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="h-full flex flex-col">
-                <div className="rounded-2xl overflow-hidden shadow-xl bg-white h-full flex flex-col">
+              <div className="h-auto md:h-full flex flex-col">
+                <div className="rounded-2xl shadow-xl bg-white h-auto max-h-none overflow-visible md:h-full md:overflow-hidden flex flex-col">
                 <div
-                  className="relative w-full aspect-[4/5] overflow-hidden bg-gray-100"
+                  className="relative w-full aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
                   onDoubleClick={() => handleImageDoubleTap(active)}
                 >
                   <img
@@ -744,7 +744,7 @@ export default function PersonaFeed() {
                   </AnimatePresence>
                 </div>
 
-                <div className="p-4 flex-1 overflow-y-auto">
+                <div className="p-4 overflow-visible md:flex-1 md:overflow-y-auto">
                   <div className="text-xs text-gray-500">
                     {active.tags.slice(0, 5).join(" • ")}
                   </div>
@@ -884,7 +884,7 @@ export default function PersonaFeed() {
 
                     <button
                       onClick={() => goTo(index + 1)}
-                      className="hidden md:block px-3 py-2 rounded bg-gray-100 text-sm"
+                      className="px-3 py-2 rounded bg-gray-100 text-sm"
                     >
                       Next
                     </button>
