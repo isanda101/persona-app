@@ -41,6 +41,28 @@ function writeJSON(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function deriveImageQuery(topic: string, tags: string[]) {
+  const tagText = tags.join(" ").toLowerCase();
+  const topicText = topic.toLowerCase();
+  const has = (value: string) => tagText.includes(value) || topicText.includes(value);
+
+  if (has("gucci")) {
+    if (topicText.includes("bag")) return "gucci bag marmont";
+    if (topicText.includes("sneaker") || tagText.includes("sneaker")) return "gucci sneakers";
+    return "gucci fashion";
+  }
+  if (has("rolex")) return "rolex gmt watch close up";
+  if (has("porsche")) return "porsche 911 sports car";
+  if (has("eames")) return "eames lounge chair interior";
+  if (has("levi's") || has("levis") || has("denim")) return "vintage levis denim jeans";
+
+  return `${(tags || []).slice(0, 3).join(" ")} editorial photo`.trim();
+}
+
+function img(topic: string) {
+  return `https://picsum.photos/seed/${encodeURIComponent(topic)}/1200/800`;
+}
+
 export default function PersonaFeed() {
   const [cards, setCards] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(true);
