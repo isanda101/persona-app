@@ -13,6 +13,7 @@ type Body = {
     note?: string;
     tags?: string[];
     image_url?: string | null;
+    editorial?: string;
   };
 };
 
@@ -289,9 +290,10 @@ export async function POST(req: Request) {
 
   // Upload mode: return one editorial card using upload note/tags (+ image_url).
   if (body.upload && typeof body.upload === "object") {
-    const { note, tags, image_url } = body.upload;
+    const { note, tags, image_url, editorial } = body.upload;
     const safeTags = safeArrayStrings(tags, 12);
     const safeNote = typeof note === "string" ? note.trim() : "";
+    const safeEditorial = typeof editorial === "string" ? editorial.trim() : "";
     const topic = buildUploadTopic(safeNote, safeTags);
 
     const editorialPrompt = `
@@ -309,17 +311,19 @@ Requirements:
 - Write in an engaging editorial tone
 `;
 
-    let caption_long = `An editorial community upload featuring ${topic}.`;
-    try {
-      const completion = await openai.responses.create({
-        model: "gpt-4.1-mini",
-        input: editorialPrompt,
-      });
-      caption_long =
-        completion.output_text ||
-        `An editorial community upload featuring ${topic}.`;
-    } catch {
-      caption_long = `An editorial community upload featuring ${topic}.`;
+    let caption_long = safeEditorial || `An editorial community upload featuring ${topic}.`;
+    if (!safeEditorial) {
+      try {
+        const completion = await openai.responses.create({
+          model: "gpt-4.1-mini",
+          input: editorialPrompt,
+        });
+        caption_long =
+          completion.output_text ||
+          `An editorial community upload featuring ${topic}.`;
+      } catch {
+        caption_long = `An editorial community upload featuring ${topic}.`;
+      }
     }
 
     const caption_short =

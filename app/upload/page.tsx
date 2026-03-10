@@ -39,13 +39,14 @@ export default function UploadPage() {
   const [detectedModel, setDetectedModel] = useState("");
   const [detectedStyle, setDetectedStyle] = useState("");
   const [detectedEra, setDetectedEra] = useState("");
-  const [suggestedNote, setSuggestedNote] = useState("");
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [aiTaggingError, setAiTaggingError] = useState("");
   const [hasVisionResult, setHasVisionResult] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [editorialText, setEditorialText] = useState("");
+  const [isGeneratingEditorial, setIsGeneratingEditorial] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,83 +68,6 @@ export default function UploadPage() {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     };
   }, [imagePreviewUrl]);
-
-  const onImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
-
-    setImageFile(file);
-    setImagePreviewUrl(URL.createObjectURL(file));
-    setUploadedImageUrl("");
-    setAiTaggingError("");
-    setHasVisionResult(false);
-    setSuggestedTags([]);
-    setDetectedObjectType("");
-    setDetectedBrand("");
-    setDetectedModel("");
-    setDetectedStyle("");
-    setDetectedEra("");
-    setSuggestedNote("");
-    setError("");
-
-    try {
-      setIsUploadingImage(true);
-      const blob = await upload(file.name, file, {
-        access: "public",
-        handleUploadUrl: "/api/upload-image",
-      });
-      const blobUrl = blob?.url || "";
-      if (!blobUrl) {
-        throw new Error("No image URL returned from upload");
-      }
-      setUploadedImageUrl(blobUrl);
-      setIsUploadingImage(false);
-
-      setIsAnalyzingImage(true);
-      const visionRes = await fetch("/api/vision-tags", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: blobUrl }),
-      });
-      const visionData = await visionRes.json();
-      console.log("visionData", visionData);
-      setHasVisionResult(true);
-
-      if (!visionRes.ok) {
-        setAiTaggingError("AI tagging failed");
-      } else {
-        const visionTags = Array.isArray(visionData?.tags)
-          ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
-          : [];
-        const visionNote = String(visionData?.note || "").trim();
-
-        setSuggestedTags(visionTags);
-        setDetectedObjectType(String(visionData?.object_type || ""));
-        setDetectedBrand(String(visionData?.brand || ""));
-        setDetectedModel(String(visionData?.model || ""));
-        setDetectedStyle(String(visionData?.style || ""));
-        setDetectedEra(String(visionData?.era || ""));
-        setSuggestedNote(visionNote);
-
-        setSelectedTags((prev) => mergeCaseInsensitive(prev, visionTags));
-        setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
-
-        if (visionNote) {
-          setNote((prev) => (prev.trim() ? prev : visionNote));
-        }
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Image upload failed";
-      setError(message);
-      setAiTaggingError("AI tagging failed");
-      setHasVisionResult(true);
-    } finally {
-      setIsUploadingImage(false);
-      setIsAnalyzingImage(false);
-    }
-  };
 
   const toggleTag = (tag: string) => {
     setSelectedTags((prev) =>
@@ -170,6 +94,126 @@ export default function UploadPage() {
       out.push(item);
     }
     return out;
+  };
+
+  const analyzeImageTags = async (imageUrl: string) => {
+    setIsAnalyzingImage(true);
+    setAiTaggingError("");
+    try {
+      const visionRes = await fetch("/api/vision-tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: imageUrl }),
+      });
+      const visionData = await visionRes.json();
+      console.log("visionData", visionData);
+      setHasVisionResult(true);
+
+      if (!visionRes.ok) {
+        setAiTaggingError("AI tagging failed");
+        return;
+      }
+
+      const visionTags = Array.isArray(visionData?.tags)
+        ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
+        : [];
+
+      setSuggestedTags(visionTags);
+      setDetectedObjectType(String(visionData?.object_type || ""));
+      setDetectedBrand(String(visionData?.brand || ""));
+      setDetectedModel(String(visionData?.model || ""));
+      setDetectedStyle(String(visionData?.style || ""));
+      setDetectedEra(String(visionData?.era || ""));
+
+      setSelectedTags((prev) => mergeCaseInsensitive(prev, visionTags));
+      setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
+    } catch {
+      setAiTaggingError("AI tagging failed");
+      setHasVisionResult(true);
+    } finally {
+      setIsAnalyzingImage(false);
+    }
+  };
+
+  const onImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
+
+    setImageFile(file);
+    setImagePreviewUrl(URL.createObjectURL(file));
+    setUploadedImageUrl("");
+    setAiTaggingError("");
+    setHasVisionResult(false);
+    setSuggestedTags([]);
+    setDetectedObjectType("");
+    setDetectedBrand("");
+    setDetectedModel("");
+    setDetectedStyle("");
+    setDetectedEra("");
+    setError("");
+
+    try {
+      setIsUploadingImage(true);
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload-image",
+      });
+      const blobUrl = blob?.url || "";
+      if (!blobUrl) {
+        throw new Error("No image URL returned from upload");
+      }
+      setUploadedImageUrl(blobUrl);
+      await analyzeImageTags(blobUrl);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Image upload failed";
+      setError(message);
+    } finally {
+      setIsUploadingImage(false);
+    }
+  };
+
+  const generateWithAI = async () => {
+    if (!uploadedImageUrl) {
+      setError("Please wait for image upload to finish.");
+      return;
+    }
+
+    setIsGeneratingEditorial(true);
+    setError("");
+    try {
+      if (!hasVisionResult) {
+        await analyzeImageTags(uploadedImageUrl);
+      }
+
+      const res = await fetch("/api/generate-cards", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          upload: {
+            note,
+            tags: selectedTags,
+            image_url: uploadedImageUrl,
+          },
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(errText || "Editorial generation failed");
+      }
+
+      const data = await res.json();
+      const nextEditorial = String(data?.cards?.[0]?.caption_long || "").trim();
+      if (nextEditorial) {
+        setEditorialText(nextEditorial);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not generate editorial text.");
+    } finally {
+      setIsGeneratingEditorial(false);
+    }
   };
 
   const normalizedQueryRaw = tagQuery.trim();
@@ -221,6 +265,7 @@ export default function UploadPage() {
             note,
             tags: selectedTags,
             image_url: uploadedImageUrl,
+            editorial: editorialText,
           },
         }),
       });
@@ -353,7 +398,7 @@ export default function UploadPage() {
 
           <div>
             <label htmlFor="upload-note" className="text-sm font-medium text-gray-500 block mb-2">
-              Title / Note (optional)
+              Title
             </label>
             <textarea
               id="upload-note"
@@ -363,6 +408,37 @@ export default function UploadPage() {
               className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
               rows={3}
             />
+          </div>
+
+          <div>
+            <button
+              type="button"
+              onClick={generateWithAI}
+              disabled={isGeneratingEditorial || !uploadedImageUrl}
+              className={`px-4 py-2 rounded-xl text-sm font-medium ${
+                !isGeneratingEditorial && uploadedImageUrl
+                  ? "bg-black text-white"
+                  : "bg-gray-200 text-gray-500"
+              }`}
+            >
+              {isGeneratingEditorial ? "Generating..." : "Generate with AI"}
+            </button>
+            <div className="text-xs text-gray-500 mt-2">
+              Use AI to generate an editorial description from the image and tags.
+            </div>
+            <div className="mt-4">
+              <label htmlFor="upload-editorial" className="text-sm font-medium text-gray-500 block mb-2">
+                Editorial
+              </label>
+              <textarea
+                id="upload-editorial"
+                value={editorialText}
+                onChange={(e) => setEditorialText(e.target.value)}
+                placeholder="Write your editorial text, or generate one with AI."
+                className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                rows={6}
+              />
+            </div>
           </div>
 
           <div>
