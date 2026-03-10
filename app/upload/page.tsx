@@ -41,6 +41,8 @@ export default function UploadPage() {
   const [detectedEra, setDetectedEra] = useState("");
   const [uploadedImageUrl, setUploadedImageUrl] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isModeratingImage, setIsModeratingImage] = useState(false);
+  const [moderationBlocked, setModerationBlocked] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [aiTaggingError, setAiTaggingError] = useState("");
   const [hasVisionResult, setHasVisionResult] = useState(false);
@@ -57,7 +59,9 @@ export default function UploadPage() {
     Boolean(uploadedImageUrl) &&
     selectedTags.length > 0 &&
     !isSubmitting &&
-    !isUploadingImage;
+    !isUploadingImage &&
+    !isModeratingImage &&
+    !moderationBlocked;
 
   const allTags = useMemo(
     () => Array.from(new Set(availableTags)),
@@ -147,6 +151,7 @@ export default function UploadPage() {
     setImageFile(file);
     setImagePreviewUrl(URL.createObjectURL(file));
     setUploadedImageUrl("");
+    setModerationBlocked(false);
     setAiTaggingError("");
     setHasVisionResult(false);
     setSuggestedTags([]);
@@ -168,16 +173,42 @@ export default function UploadPage() {
         throw new Error("No image URL returned from upload");
       }
       setUploadedImageUrl(blobUrl);
+      setIsModeratingImage(true);
+      const moderationRes = await fetch("/api/moderate-image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: blobUrl }),
+      });
+      const moderationData = await moderationRes.json().catch(() => ({}));
+      const blocked = Boolean(moderationData?.flagged) || moderationData?.ok === false || !moderationRes.ok;
+      if (blocked) {
+        setModerationBlocked(true);
+        setError(String(moderationData?.reason || "This image can't be posted on Persona."));
+        setAiTaggingError("");
+        setHasVisionResult(false);
+        setSuggestedTags([]);
+        setDetectedObjectType("");
+        setDetectedBrand("");
+        setDetectedModel("");
+        setDetectedStyle("");
+        setDetectedEra("");
+        return;
+      }
       await analyzeImageTags(blobUrl);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Image upload failed";
       setError(message);
     } finally {
+      setIsModeratingImage(false);
       setIsUploadingImage(false);
     }
   };
 
   const generateWithAI = async () => {
+    if (moderationBlocked) {
+      setError("This image can't be posted on Persona.");
+      return;
+    }
     if (!uploadedImageUrl) {
       setError("Please wait for image upload to finish.");
       return;
@@ -259,6 +290,10 @@ export default function UploadPage() {
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (selectedTags.length === 0 || isSubmitting) return;
+    if (moderationBlocked) {
+      setError("This image can't be posted on Persona.");
+      return;
+    }
     if (!imageFile) {
       setError("Please choose an image first.");
       return;
@@ -351,6 +386,12 @@ export default function UploadPage() {
                 </div>
               )}
             </div>
+            {isModeratingImage ? (
+              <div className="text-xs text-gray-500 mt-2">Checking image safety...</div>
+            ) : null}
+            {moderationBlocked ? (
+              <div className="text-xs text-red-600 mt-2">This image can&apos;t be posted on Persona.</div>
+            ) : null}
             {isUploadingImage ? <div className="text-xs text-gray-500 mt-2">Uploading image...</div> : null}
           </div>
 
@@ -378,9 +419,9 @@ export default function UploadPage() {
               <button
                 type="button"
                 onClick={generateWithAI}
-                disabled={isGeneratingEditorial || !uploadedImageUrl}
+                disabled={isGeneratingEditorial || !uploadedImageUrl || isModeratingImage || moderationBlocked}
                 className={`text-sm px-3 py-1.5 rounded-lg border ${
-                  !isGeneratingEditorial && uploadedImageUrl
+                  !isGeneratingEditorial && uploadedImageUrl && !isModeratingImage && !moderationBlocked
                     ? "bg-gray-100 text-gray-700 border-gray-300"
                     : "bg-gray-100 text-gray-400 border-gray-200"
                 }`}
