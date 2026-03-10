@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import PersonaHeader from "@/components/PersonaHeader";
 
 type CardItem = {
   id: string;
@@ -93,6 +94,7 @@ export default function PostDetailPage() {
     return (
       <div className="min-h-screen bg-white text-black px-5 py-8">
         <div className="max-w-2xl mx-auto">
+          <PersonaHeader showBack />
           <h1 className="text-2xl font-semibold">Post</h1>
           <div className="mt-4 text-gray-600">Post not found</div>
           <Link href="/saved" className="mt-4 inline-block underline text-sm">
@@ -108,6 +110,7 @@ export default function PostDetailPage() {
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
       <div className="max-w-2xl mx-auto">
+        <PersonaHeader showBack />
         <div className="flex items-center justify-between gap-4">
           <h1 className="text-2xl font-semibold">Post</h1>
           <Link href="/saved" className="text-sm underline">
@@ -141,4 +144,3 @@ export default function PostDetailPage() {
     </div>
   );
 }
-

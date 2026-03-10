@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
+import PersonaHeader from "@/components/PersonaHeader";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -355,7 +356,7 @@ export default function UploadPage() {
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
       <div className="max-w-md mx-auto">
-        <div className="text-sm text-gray-500">Persona</div>
+        <PersonaHeader showBack />
         <h1 className="text-2xl font-semibold mt-2">Create Editorial Card</h1>
         <p className="text-gray-600 mt-2">Create an editorial card from an image and your selected taste tags.</p>
         {error ? <p className="text-sm text-red-600 mt-3">{error}</p> : null}

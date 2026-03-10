@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import PersonaHeader from "./PersonaHeader";
 
 type Card = {
   id: string;
@@ -504,7 +505,7 @@ export default function PersonaFeed() {
     <div className="w-screen h-screen bg-white text-black overflow-hidden">
       {/* Top nav */}
       <div className="absolute top-4 left-4 z-20 flex gap-3 items-center">
-        <div className="bg-black text-white px-3 py-1 rounded-full text-sm">Persona</div>
+        <PersonaHeader />
         <a href="/saved" className="text-sm underline">
           Collection
         </a>

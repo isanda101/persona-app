@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import PersonaHeader from "@/components/PersonaHeader";
 
 type SearchTab = "top" | "posts" | "tags" | "creators";
 
@@ -216,7 +217,7 @@ export default function SearchPage() {
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
       <div className="max-w-3xl mx-auto">
-        <div className="text-sm text-gray-500">Persona</div>
+        <PersonaHeader showBack />
         <h1 className="text-2xl font-semibold mt-2">Search</h1>
 
         <div className="mt-4">

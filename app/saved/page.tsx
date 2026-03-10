@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import PersonaHeader from "@/components/PersonaHeader";
 
 type CardItem = {
   id: string;
@@ -319,6 +320,7 @@ export default function SavedPage() {
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
+      <PersonaHeader showBack />
       <h1 className="text-2xl font-semibold">Collection</h1>
 
       <div className="mt-4 border-b border-gray-200 flex items-end gap-5">
