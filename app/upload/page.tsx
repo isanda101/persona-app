@@ -56,9 +56,10 @@ export default function UploadPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
+  const hasTagCandidate = selectedTags.length > 0 || suggestedTags.length > 0;
   const hasReadyForm =
     Boolean(uploadedImageUrl) &&
-    selectedTags.length > 0 &&
+    hasTagCandidate &&
     !isSubmitting &&
     !isUploadingImage &&
     !isModeratingImage &&
@@ -100,6 +101,39 @@ export default function UploadPage() {
       out.push(item);
     }
     return out;
+  };
+
+  const toTitleWords = (value: string) =>
+    String(value || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
+  const buildTitleFromVision = ({
+    brand,
+    model,
+    objectType,
+    tags,
+  }: {
+    brand: string;
+    model: string;
+    objectType: string;
+    tags: string[];
+  }) => {
+    const safeBrand = String(brand || "").trim();
+    const safeModel = String(model || "").trim();
+    const safeObjectType = String(objectType || "").trim();
+    const safeTags = Array.isArray(tags)
+      ? tags.map((tag) => String(tag || "").trim()).filter(Boolean)
+      : [];
+
+    if (safeBrand && safeModel) return `${toTitleWords(safeBrand)} ${toTitleWords(safeModel)}`.trim();
+    if (safeBrand && safeObjectType) return `${toTitleWords(safeBrand)} ${toTitleWords(safeObjectType)}`.trim();
+    if (safeTags.length >= 2) return `${toTitleWords(safeTags[0])} ${toTitleWords(safeTags[1])}`.trim();
+    if (safeTags.length === 1) return toTitleWords(safeTags[0]);
+    return "Community Post";
   };
 
   const analyzeImageTags = async (imageUrl: string): Promise<string[]> => {
@@ -290,7 +324,7 @@ export default function UploadPage() {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (selectedTags.length === 0 || isSubmitting) return;
+    if (isSubmitting) return;
     if (moderationBlocked) {
       setError("This image can't be posted on Persona.");
       return;
@@ -308,15 +342,33 @@ export default function UploadPage() {
     setError("");
 
     try {
+      const finalTags = selectedTags.length
+        ? selectedTags
+        : suggestedTags.length
+          ? suggestedTags
+          : [];
+
+      if (!finalTags.length) {
+        throw new Error("Add at least one tag to post on Persona.");
+      }
+
+      const finalTitle = note.trim() || buildTitleFromVision({
+        brand: detectedBrand,
+        model: detectedModel,
+        objectType: detectedObjectType,
+        tags: finalTags,
+      });
+      const finalEditorial = editorialText.trim();
+
       const cardRes = await fetch("/api/generate-cards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           upload: {
-            note,
-            tags: selectedTags,
+            note: finalTitle,
+            tags: finalTags,
             image_url: uploadedImageUrl,
-            editorial: editorialText,
+            editorial: finalEditorial,
             creator_name: "You",
             creator_handle: "@you",
           },
@@ -405,7 +457,7 @@ export default function UploadPage() {
               id="upload-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a title"
+              placeholder="Add a title (optional)"
               className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
               rows={3}
             />
@@ -434,7 +486,7 @@ export default function UploadPage() {
               id="upload-editorial"
               value={editorialText}
               onChange={(e) => setEditorialText(e.target.value)}
-              placeholder="Write your editorial text, or generate one with AI."
+              placeholder="Write an editorial... (optional)"
               className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
               rows={6}
             />

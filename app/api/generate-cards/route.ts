@@ -225,6 +225,7 @@ function toTitleCase(value: string) {
 function buildUploadTopic(note: string, tags: string[]) {
   const cleanTags = tags.map((tag) => String(tag || "").trim()).filter(Boolean);
   const noteText = String(note || "").trim();
+  if (noteText) return noteText;
 
   const findBrand = () =>
     BRAND_HINTS.find((brand) =>
@@ -248,7 +249,6 @@ function buildUploadTopic(note: string, tags: string[]) {
     return `${brand} ${objectType}`;
   }
 
-  if (noteText) return noteText;
   if (cleanTags.length >= 2) return `${toTitleCase(cleanTags[0])} ${toTitleCase(cleanTags[1])}`;
   if (cleanTags.length === 1) return toTitleCase(cleanTags[0]);
   return "Community Upload";
