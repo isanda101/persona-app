@@ -504,20 +504,8 @@ export default function PersonaFeed() {
   return (
     <div className="w-screen h-screen bg-white text-black overflow-hidden">
       {/* Top nav */}
-      <div className="absolute top-4 left-4 z-20 flex gap-3 items-center">
-        <PersonaHeader />
-        <a href="/saved" className="text-sm underline">
-          Collection
-        </a>
-        <a href="/search" className="text-sm underline">
-          Search
-        </a>
-        <a href="/upload" className="text-sm underline">
-          Upload
-        </a>
-        <a href="/taste" className="text-sm underline">
-          Taste
-        </a>
+      <div className="absolute top-4 inset-x-4 z-20">
+        <PersonaHeader showSearch />
       </div>
 
       {/* Toast */}
