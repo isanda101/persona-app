@@ -5,12 +5,14 @@ import { motion, AnimatePresence } from "framer-motion";
 
 type Card = {
   id: string;
+  topic?: string;
+  image_query?: string;
   image_url: string;
   caption_short: string;
   caption_long: string;
   tags: string[];
   attribution?: string;
-  source?: "community";
+  source?: "community" | "editorial";
 };
 
 type StyleDNA = {
