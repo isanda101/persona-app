@@ -139,28 +139,40 @@ export default function PersonaFeed() {
     return obj;
   }
 
-  function selectRelevantUploads(
+  function selectUploadsForFeed(
     tastes: string[],
     styleKeywords: string[],
-    maxCount = 3,
   ): Card[] {
-    const uploads = readJSON<unknown[]>("persona:uploads", []);
+    let uploads: unknown[] = [];
+    try {
+      uploads = JSON.parse(localStorage.getItem("persona:uploads") || "[]");
+    } catch {
+      uploads = [];
+    }
     if (!Array.isArray(uploads) || !uploads.length) return [];
 
     const relevancePool = new Set(
       [...tastes, ...styleKeywords].map((x) => String(x).toLowerCase().trim()).filter(Boolean),
     );
-    if (!relevancePool.size) return [];
 
     const normalized = uploads
       .map((item) => normalizeUploadCard(item))
       .filter((item): item is Card => Boolean(item));
+    if (!normalized.length) return [];
 
-    const matching = normalized.filter((card) =>
-      card.tags.some((tag) => relevancePool.has(tag.toLowerCase().trim())),
+    const newestUpload = normalized.length ? [normalized[0]] : [];
+    const matchingUploads = normalized.filter((card) =>
+      card.tags?.some((tag) => relevancePool.has(String(tag).toLowerCase().trim())),
     );
 
-    return matching.slice(0, maxCount);
+    const uploadsWithPriority = [...newestUpload, ...matchingUploads.slice(0, 2)];
+    const seen = new Set<string>();
+    return uploadsWithPriority.filter((card) => {
+      const key = String(card.id || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   async function fetchBatch(nextCursor: number, mode: "replace" | "append", savedAll?: Card[]) {
@@ -205,24 +217,51 @@ export default function PersonaFeed() {
         : Array.isArray(dna?.keywords)
           ? dna.keywords || []
           : [];
-      const communityCards =
+      const uploadCards =
         mode === "replace"
-          ? selectRelevantUploads(tastes, effectiveStyleKeywords, 3)
+          ? selectUploadsForFeed(tastes, effectiveStyleKeywords)
           : [];
-      const mergedForReplace =
+      const finalCards =
         mode === "replace"
-          ? [
-              ...communityCards,
-              ...newCards.filter((card) => !communityCards.some((u) => u.id === card.id)),
-            ].map((card) => {
-              if (card.source === "community") return card;
-              return { ...card };
-            })
+          ? [...uploadCards, ...newCards]
           : newCards;
+      const finalDeduped = (() => {
+        const seen = new Set<string>();
+        return finalCards.filter((card) => {
+          const key = String(card.id || "");
+          if (!key || seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      })();
+      const safeCards = finalDeduped.map((card) => {
+        if (
+          card?.source === "community" ||
+          String(card?.image_url || "").includes(".public.blob.vercel-storage.com")
+        ) {
+          return {
+            ...card,
+            source: "community" as const,
+          };
+        }
+        const topic = String(card.topic || card.tags?.[0] || "Style");
+        const tags = Array.isArray(card.tags) && card.tags.length
+          ? card.tags
+          : [topic, "Style", "Culture"];
+        return {
+          ...card,
+          id: String(card.id || `${nextCursor}-${Math.random().toString(36).slice(2, 8)}`),
+          image_query: String(card.image_query || deriveImageQuery(topic, tags)),
+          image_url: String(card.image_url || img(topic)),
+          caption_short: String(card.caption_short || `${topic}: editorial note.`).slice(0, 220),
+          caption_long: String(card.caption_long || `Expanded take on ${topic}.`),
+          tags,
+        };
+      });
 
       if (mode === "replace") {
-        setCards(mergedForReplace);
-        addSeenFromCards(mergedForReplace);
+        setCards(safeCards);
+        addSeenFromCards(safeCards);
         setIndex(0);
         setExpanded(false);
         cursorRef.current = nextCursor;
@@ -607,6 +646,9 @@ export default function PersonaFeed() {
 
               <div className="mt-4 text-center text-xs text-gray-400">
                 Drag up/down to browse • Tap “Read more”
+              </div>
+              <div className="mt-1 text-center text-[10px] text-gray-400">
+                {active?.source || "editorial"} • {String(active?.image_url || "").slice(0, 60)}
               </div>
               {isLoadingMore ? (
                 <div className="mt-1 text-center text-xs text-gray-500">Loading more…</div>
