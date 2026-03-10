@@ -124,23 +124,19 @@ export default function PersonaFeed() {
     setSeenTags(nextTags);
   }
 
-  function normalizeUploadCard(raw: unknown, i: number): Card | null {
+  function normalizeUploadCard(raw: unknown): Card | null {
     if (!raw || typeof raw !== "object") return null;
-    const obj = raw as Partial<Card>;
-    const tags = Array.isArray(obj.tags) ? obj.tags.map((t) => String(t)).filter(Boolean) : [];
-    const captionShort = String(obj.caption_short || "").trim();
-    const imageUrl = String(obj.image_url || "").trim();
-    if (!captionShort || !imageUrl || !tags.length) return null;
-
-    return {
-      id: String(obj.id || `community-${Date.now()}-${i + 1}`),
-      image_url: imageUrl,
-      caption_short: captionShort,
-      caption_long: String(obj.caption_long || ""),
-      tags,
-      attribution: obj.attribution ? String(obj.attribution) : "Uploaded by community",
-      source: "community",
-    };
+    const obj = raw as Card;
+    if (
+      typeof obj.id !== "string" ||
+      typeof obj.image_url !== "string" ||
+      typeof obj.caption_short !== "string" ||
+      !Array.isArray(obj.tags)
+    ) {
+      return null;
+    }
+    // Keep community upload objects exactly as stored in localStorage.
+    return obj;
   }
 
   function selectRelevantUploads(
@@ -157,7 +153,7 @@ export default function PersonaFeed() {
     if (!relevancePool.size) return [];
 
     const normalized = uploads
-      .map((item, i) => normalizeUploadCard(item, i))
+      .map((item) => normalizeUploadCard(item))
       .filter((item): item is Card => Boolean(item));
 
     const matching = normalized.filter((card) =>
@@ -218,7 +214,10 @@ export default function PersonaFeed() {
           ? [
               ...communityCards,
               ...newCards.filter((card) => !communityCards.some((u) => u.id === card.id)),
-            ]
+            ].map((card) => {
+              if (card.source === "community") return card;
+              return { ...card };
+            })
           : newCards;
 
       if (mode === "replace") {
