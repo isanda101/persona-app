@@ -41,6 +41,26 @@ function writeJSON(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function updateFeedCache(incoming: Card[], savedCards?: Card[]) {
+  const existing = readJSON<Card[]>("persona:feed_cache", []);
+  const saved = Array.isArray(savedCards) ? savedCards : readJSON<Card[]>("persona:saved", []);
+  const merged = [...incoming, ...saved, ...existing].filter(
+    (card) => card && typeof card.id === "string" && card.id.trim(),
+  );
+
+  const seen = new Set<string>();
+  const next: Card[] = [];
+  for (const card of merged) {
+    const key = String(card.id || "").trim();
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    next.push(card);
+    if (next.length >= 200) break;
+  }
+
+  writeJSON("persona:feed_cache", next);
+}
+
 function deriveImageQuery(topic: string, tags: string[]) {
   const tagText = tags.join(" ").toLowerCase();
   const topicText = topic.toLowerCase();
@@ -282,6 +302,9 @@ export default function PersonaFeed() {
           tags,
         };
       });
+
+      // Cache feed cards for Collection liked-id reconstruction.
+      updateFeedCache(safeCards, savedSource);
 
       if (mode === "replace") {
         setCards(safeCards);

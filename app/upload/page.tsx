@@ -96,7 +96,7 @@ export default function UploadPage() {
     return out;
   };
 
-  const analyzeImageTags = async (imageUrl: string) => {
+  const analyzeImageTags = async (imageUrl: string): Promise<string[]> => {
     setIsAnalyzingImage(true);
     setAiTaggingError("");
     try {
@@ -111,7 +111,7 @@ export default function UploadPage() {
 
       if (!visionRes.ok) {
         setAiTaggingError("AI tagging failed");
-        return;
+        return [];
       }
 
       const visionTags = Array.isArray(visionData?.tags)
@@ -127,9 +127,11 @@ export default function UploadPage() {
 
       setSelectedTags((prev) => mergeCaseInsensitive(prev, visionTags));
       setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
+      return visionTags;
     } catch {
       setAiTaggingError("AI tagging failed");
       setHasVisionResult(true);
+      return [];
     } finally {
       setIsAnalyzingImage(false);
     }
@@ -183,8 +185,12 @@ export default function UploadPage() {
     setIsGeneratingEditorial(true);
     setError("");
     try {
+      let tagsForEditorial = selectedTags;
       if (!hasVisionResult) {
-        await analyzeImageTags(uploadedImageUrl);
+        const visionTags = await analyzeImageTags(uploadedImageUrl);
+        tagsForEditorial = mergeCaseInsensitive(selectedTags, visionTags);
+      } else if (!tagsForEditorial.length && suggestedTags.length) {
+        tagsForEditorial = mergeCaseInsensitive(tagsForEditorial, suggestedTags);
       }
 
       const res = await fetch("/api/generate-cards", {
@@ -193,7 +199,7 @@ export default function UploadPage() {
         body: JSON.stringify({
           upload: {
             note,
-            tags: selectedTags,
+            tags: tagsForEditorial,
             image_url: uploadedImageUrl,
           },
         }),
@@ -404,7 +410,7 @@ export default function UploadPage() {
               id="upload-note"
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Add a short title or note"
+              placeholder="Add a title"
               className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
               rows={3}
             />
