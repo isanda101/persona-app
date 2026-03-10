@@ -20,12 +20,19 @@ function shouldShowBottomNav(pathname: string): boolean {
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const showBottomNav = shouldShowBottomNav(pathname);
+  const needsTopOffset = pathname === "/";
 
   return (
     <>
-      <div className={showBottomNav ? "pb-[calc(4rem+env(safe-area-inset-bottom)+1rem)]" : ""}>
+      <main
+        className={
+          showBottomNav
+            ? `${needsTopOffset ? "pt-16 " : ""}pb-24 pb-[calc(6rem+env(safe-area-inset-bottom))]`
+            : ""
+        }
+      >
         {children}
-      </div>
+      </main>
       {showBottomNav ? <BottomNav /> : null}
     </>
   );

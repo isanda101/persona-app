@@ -697,7 +697,7 @@ export default function PersonaFeed() {
         </div>
       )}
 
-      <main className="mx-auto w-full max-w-md px-4 pt-20 pb-28">
+      <main className="mx-auto w-full max-w-md px-4">
         <div className="h-auto md:h-[calc(100svh-9rem)]">
           <AnimatePresence mode="wait">
             <motion.div
