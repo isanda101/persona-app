@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 type CardItem = {
@@ -172,36 +173,42 @@ function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: S
       {items.length > 0 ? (
         <div className="grid grid-cols-2 gap-3">
           {items.map((card) => (
-            <div key={card.id} className="border border-gray-200 rounded-xl bg-white overflow-hidden">
-              <div className="relative">
-                <img
-                  src={card.image_url}
-                  alt={compactTitle(card)}
-                  className="w-full aspect-[3/4] object-cover"
-                />
-                <button
-                  type="button"
-                  onClick={() => onRemove(card)}
-                  className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 border border-gray-300 text-xs text-gray-700 hover:text-black"
-                  aria-label="Remove item"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="p-2">
-                <div className="text-sm font-medium truncate">{compactTitle(card)}</div>
-                {creatorLine(card) ? (
-                  <div className="text-xs text-gray-500 mt-0.5 truncate">{creatorLine(card)}</div>
-                ) : null}
-                <div className="text-xs text-gray-500 mt-1 truncate">
-                  {card.tags.length ? card.tags.slice(0, 4).join(" • ") : "No tags"}
+            <div key={card.id} className="relative border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <Link href={`/post/${encodeURIComponent(card.id)}`} className="block">
+                <div>
+                  <img
+                    src={card.image_url}
+                    alt={compactTitle(card)}
+                    className="w-full aspect-[3/4] object-cover"
+                  />
                 </div>
-                {showCommunityBadge && card.source === "community" ? (
-                  <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
-                    Community
+                <div className="p-2">
+                  <div className="text-sm font-medium truncate">{compactTitle(card)}</div>
+                  {creatorLine(card) ? (
+                    <div className="text-xs text-gray-500 mt-0.5 truncate">{creatorLine(card)}</div>
+                  ) : null}
+                  <div className="text-xs text-gray-500 mt-1 truncate">
+                    {card.tags.length ? card.tags.slice(0, 4).join(" • ") : "No tags"}
                   </div>
-                ) : null}
-              </div>
+                  {showCommunityBadge && card.source === "community" ? (
+                    <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
+                      Community
+                    </div>
+                  ) : null}
+                </div>
+              </Link>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onRemove(card);
+                }}
+                className="absolute top-2 right-2 h-7 w-7 rounded-full bg-white/90 border border-gray-300 text-xs text-gray-700 hover:text-black z-10"
+                aria-label="Remove item"
+              >
+                ✕
+              </button>
             </div>
           ))}
         </div>
