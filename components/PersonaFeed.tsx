@@ -93,6 +93,7 @@ export default function PersonaFeed() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [dna, setDna] = useState<StyleDNA | null>(null);
+  const [dnaOpen, setDnaOpen] = useState(false);
   const [seenTopics, setSeenTopics] = useState<string[]>([]);
   const [seenTags, setSeenTags] = useState<string[]>([]);
   const [savedIds, setSavedIds] = useState<string[]>([]);
@@ -526,16 +527,53 @@ export default function PersonaFeed() {
 
       {/* Style DNA */}
       {dna?.one_liner && (
-        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92vw] max-w-sm">
-          <div className="rounded-xl border bg-white/90 backdrop-blur px-3 py-2 shadow-sm">
-            <div className="text-xs text-gray-500">Your Style DNA</div>
-            <div className="text-sm font-medium">{dna.one_liner}</div>
-            {dna.keywords?.length ? (
-              <div className="mt-1 text-xs text-gray-600">
-                {dna.keywords.slice(0, 8).join(" • ")}
+        <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92vw] max-w-xs">
+          <motion.div
+            layout
+            transition={{ duration: 0.24, ease: "easeInOut" }}
+            onClick={() => setDnaOpen((v) => !v)}
+            className="rounded-xl border bg-white/90 backdrop-blur px-3 py-2 shadow-sm cursor-pointer"
+            role="button"
+            aria-expanded={dnaOpen}
+            aria-label="Toggle Style DNA"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <div className="text-[11px] text-gray-500">Your Style DNA</div>
+                <div className="text-xs text-gray-700 truncate">
+                  {dna.one_liner || (dna.keywords?.slice(0, 3).join(" • ") || "Style insights")}
+                </div>
               </div>
-            ) : null}
-          </div>
+              <div className="text-xs text-gray-500 shrink-0">{dnaOpen ? "▲" : "▼"}</div>
+            </div>
+
+            <AnimatePresence initial={false}>
+              {dnaOpen ? (
+                <motion.div
+                  key="dna-expanded"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.24, ease: "easeInOut" }}
+                  className="overflow-hidden"
+                >
+                  <div className="pt-2">
+                    <div className="text-sm font-medium text-black">{dna.one_liner}</div>
+                    {dna.keywords?.length ? (
+                      <div className="mt-1 text-xs text-gray-600">
+                        {dna.keywords.slice(0, 8).join(" • ")}
+                      </div>
+                    ) : null}
+                    {dna.adjacent?.length ? (
+                      <div className="mt-1 text-xs text-gray-500">
+                        Adjacent: {dna.adjacent.slice(0, 5).join(" • ")}
+                      </div>
+                    ) : null}
+                  </div>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+          </motion.div>
         </div>
       )}
 
