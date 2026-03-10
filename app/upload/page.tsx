@@ -40,6 +40,8 @@ export default function UploadPage() {
   const [detectedStyle, setDetectedStyle] = useState("");
   const [detectedEra, setDetectedEra] = useState("");
   const [suggestedNote, setSuggestedNote] = useState("");
+  const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
+  const [aiTaggingError, setAiTaggingError] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -129,6 +131,7 @@ export default function UploadPage() {
 
     setIsSubmitting(true);
     setError("");
+    setAiTaggingError("");
 
     try {
       const blob = await upload(imageFile.name, imageFile, {
@@ -140,36 +143,49 @@ export default function UploadPage() {
         throw new Error("No image URL returned from upload");
       }
 
-      const visionRes = await fetch("/api/vision-tags", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image_url: blobUrl }),
-      });
-      if (!visionRes.ok) {
-        const errText = await visionRes.text();
-        throw new Error(errText || "Vision tag suggestion failed");
-      }
-      const visionData = await visionRes.json();
-      const visionTags = Array.isArray(visionData?.tags)
-        ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
-        : [];
-      const visionNote = String(visionData?.note || "").trim();
+      let mergedTags = selectedTags;
+      let noteToUse = note.trim() ? note : "";
 
-      setSuggestedTags(visionTags);
-      setDetectedObjectType(String(visionData?.object_type || ""));
-      setDetectedBrand(String(visionData?.brand || ""));
-      setDetectedModel(String(visionData?.model || ""));
-      setDetectedStyle(String(visionData?.style || ""));
-      setDetectedEra(String(visionData?.era || ""));
-      setSuggestedNote(visionNote);
+      setIsAnalyzingImage(true);
+      try {
+        const visionRes = await fetch("/api/vision-tags", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image_url: blobUrl }),
+        });
 
-      const mergedTags = mergeCaseInsensitive(selectedTags, visionTags);
-      setSelectedTags(mergedTags);
-      setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
+        if (!visionRes.ok) {
+          setAiTaggingError("AI tagging failed");
+        } else {
+          const visionData = await visionRes.json();
+          console.log("vision result", visionData);
 
-      const noteToUse = note.trim() ? note : visionNote;
-      if (!note.trim() && visionNote) {
-        setNote(visionNote);
+          const visionTags = Array.isArray(visionData?.tags)
+            ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
+            : [];
+          const visionNote = String(visionData?.note || "").trim();
+
+          setSuggestedTags(visionTags);
+          setDetectedObjectType(String(visionData?.object_type || ""));
+          setDetectedBrand(String(visionData?.brand || ""));
+          setDetectedModel(String(visionData?.model || ""));
+          setDetectedStyle(String(visionData?.style || ""));
+          setDetectedEra(String(visionData?.era || ""));
+          setSuggestedNote(visionNote);
+
+          mergedTags = mergeCaseInsensitive(selectedTags, visionTags);
+          setSelectedTags(mergedTags);
+          setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
+
+          noteToUse = note.trim() ? note : visionNote;
+          if (!note.trim() && visionNote) {
+            setNote(visionNote);
+          }
+        }
+      } catch {
+        setAiTaggingError("AI tagging failed");
+      } finally {
+        setIsAnalyzingImage(false);
       }
 
       const cardRes = await fetch("/api/generate-cards", {
@@ -246,7 +262,9 @@ export default function UploadPage() {
             )}
           </div>
 
-          {(detectedBrand ||
+          {(isAnalyzingImage ||
+            aiTaggingError ||
+            detectedBrand ||
             detectedObjectType ||
             detectedModel ||
             detectedStyle ||
@@ -254,6 +272,12 @@ export default function UploadPage() {
             suggestedTags.length) ? (
             <div className="rounded-2xl border border-gray-200 bg-white p-3">
               <div className="text-sm font-medium text-gray-500 mb-2">AI Suggested Tags</div>
+              {isAnalyzingImage ? (
+                <div className="text-xs text-gray-500 mb-2">Analyzing image...</div>
+              ) : null}
+              {aiTaggingError ? (
+                <div className="text-xs text-red-600 mb-2">AI tagging failed</div>
+              ) : null}
 
               {detectedBrand ? (
                 <div className="text-xs text-gray-500">Brand: {detectedBrand}</div>
