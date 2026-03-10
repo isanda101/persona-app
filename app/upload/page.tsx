@@ -295,9 +295,8 @@ export default function UploadPage() {
               })}
 
               {(() => {
-                const baseSet: Set<string> = new Set(
-                  OPTIONS.flatMap((section) => section.items as string[])
-                );
+                const baseItems = OPTIONS.flatMap((section) => [...section.items]);
+                const baseSet: Set<string> = new Set(baseItems);
                 const customItems = allTags.filter((tag) => !baseSet.has(tag));
                 const filteredCustom = normalizedQuery
                   ? customItems.filter((tag) =>
