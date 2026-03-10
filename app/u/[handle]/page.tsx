@@ -53,6 +53,7 @@ export default function UserHandlePage() {
   const params = useParams<{ handle: string }>();
   const handle = String(params?.handle || "").trim().replace(/^@+/, "");
   const normalizedHandle = handle ? `@${handle}` : "@user";
+  const isOwnProfile = handle.toLowerCase() === "you";
 
   const posts = useMemo(() => {
     if (typeof window === "undefined") return [] as CardItem[];
@@ -80,6 +81,18 @@ export default function UserHandlePage() {
         <PersonaHeader showBack />
         <h1 className="text-2xl font-semibold mt-2">{normalizedHandle}</h1>
         <p className="text-sm text-gray-500 mt-1">{posts.length} posts</p>
+        {isOwnProfile ? (
+          <div className="mt-6 border-t border-gray-200 pt-4">
+            <div className="text-sm font-medium text-gray-500 mb-2">Preferences</div>
+            <Link
+              href="/taste"
+              className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
+            >
+              <span>Refine tastes</span>
+              <span className="text-gray-400">→</span>
+            </Link>
+          </div>
+        ) : null}
 
         {posts.length ? (
           <div className="grid grid-cols-2 gap-3 mt-5">
