@@ -40,6 +40,8 @@ export default function UploadPage() {
   const [detectedStyle, setDetectedStyle] = useState("");
   const [detectedEra, setDetectedEra] = useState("");
   const [suggestedNote, setSuggestedNote] = useState("");
+  const [uploadedImageUrl, setUploadedImageUrl] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [isAnalyzingImage, setIsAnalyzingImage] = useState(false);
   const [aiTaggingError, setAiTaggingError] = useState("");
   const [hasVisionResult, setHasVisionResult] = useState(false);
@@ -47,7 +49,13 @@ export default function UploadPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const hasReadyForm = Boolean(imageFile) && selectedTags.length > 0 && !isSubmitting;
+  const hasReadyForm =
+    Boolean(imageFile) &&
+    Boolean(uploadedImageUrl) &&
+    selectedTags.length > 0 &&
+    !isSubmitting &&
+    !isUploadingImage &&
+    !isAnalyzingImage;
 
   const allTags = useMemo(
     () => Array.from(new Set(availableTags)),
@@ -60,7 +68,7 @@ export default function UploadPage() {
     };
   }, [imagePreviewUrl]);
 
-  const onImageChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const onImageChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -68,6 +76,73 @@ export default function UploadPage() {
 
     setImageFile(file);
     setImagePreviewUrl(URL.createObjectURL(file));
+    setUploadedImageUrl("");
+    setAiTaggingError("");
+    setHasVisionResult(false);
+    setSuggestedTags([]);
+    setDetectedObjectType("");
+    setDetectedBrand("");
+    setDetectedModel("");
+    setDetectedStyle("");
+    setDetectedEra("");
+    setSuggestedNote("");
+    setError("");
+
+    try {
+      setIsUploadingImage(true);
+      const blob = await upload(file.name, file, {
+        access: "public",
+        handleUploadUrl: "/api/upload-image",
+      });
+      const blobUrl = blob?.url || "";
+      if (!blobUrl) {
+        throw new Error("No image URL returned from upload");
+      }
+      setUploadedImageUrl(blobUrl);
+      setIsUploadingImage(false);
+
+      setIsAnalyzingImage(true);
+      const visionRes = await fetch("/api/vision-tags", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ image_url: blobUrl }),
+      });
+      const visionData = await visionRes.json();
+      console.log("visionData", visionData);
+      setHasVisionResult(true);
+
+      if (!visionRes.ok) {
+        setAiTaggingError("AI tagging failed");
+      } else {
+        const visionTags = Array.isArray(visionData?.tags)
+          ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
+          : [];
+        const visionNote = String(visionData?.note || "").trim();
+
+        setSuggestedTags(visionTags);
+        setDetectedObjectType(String(visionData?.object_type || ""));
+        setDetectedBrand(String(visionData?.brand || ""));
+        setDetectedModel(String(visionData?.model || ""));
+        setDetectedStyle(String(visionData?.style || ""));
+        setDetectedEra(String(visionData?.era || ""));
+        setSuggestedNote(visionNote);
+
+        setSelectedTags((prev) => mergeCaseInsensitive(prev, visionTags));
+        setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
+
+        if (visionNote) {
+          setNote((prev) => (prev.trim() ? prev : visionNote));
+        }
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Image upload failed";
+      setError(message);
+      setAiTaggingError("AI tagging failed");
+      setHasVisionResult(true);
+    } finally {
+      setIsUploadingImage(false);
+      setIsAnalyzingImage(false);
+    }
   };
 
   const toggleTag = (tag: string) => {
@@ -129,76 +204,23 @@ export default function UploadPage() {
       setError("Please choose an image first.");
       return;
     }
+    if (!uploadedImageUrl) {
+      setError("Please wait for image upload to finish.");
+      return;
+    }
 
     setIsSubmitting(true);
     setError("");
-    setAiTaggingError("");
-    setHasVisionResult(false);
 
     try {
-      const blob = await upload(imageFile.name, imageFile, {
-        access: "public",
-        handleUploadUrl: "/api/upload-image",
-      });
-      const blobUrl = blob?.url || "";
-      if (!blobUrl) {
-        throw new Error("No image URL returned from upload");
-      }
-
-      let mergedTags = selectedTags;
-      let noteToUse = note.trim() ? note : "";
-
-      setIsAnalyzingImage(true);
-      try {
-        const visionRes = await fetch("/api/vision-tags", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ image_url: blobUrl }),
-        });
-        const visionData = await visionRes.json();
-        console.log("visionData", visionData);
-        setHasVisionResult(true);
-
-        if (!visionRes.ok) {
-          setAiTaggingError("AI tagging failed");
-        } else {
-          const visionTags = Array.isArray(visionData?.tags)
-            ? visionData.tags.map((tag: unknown) => String(tag || "").trim()).filter(Boolean)
-            : [];
-          const visionNote = String(visionData?.note || "").trim();
-
-          setSuggestedTags(visionTags);
-          setDetectedObjectType(String(visionData?.object_type || ""));
-          setDetectedBrand(String(visionData?.brand || ""));
-          setDetectedModel(String(visionData?.model || ""));
-          setDetectedStyle(String(visionData?.style || ""));
-          setDetectedEra(String(visionData?.era || ""));
-          setSuggestedNote(visionNote);
-
-          mergedTags = mergeCaseInsensitive(selectedTags, visionTags);
-          setSelectedTags(mergedTags);
-          setAvailableTags((prev) => mergeCaseInsensitive(prev, visionTags));
-
-          noteToUse = note.trim() ? note : visionNote;
-          if (!note.trim() && visionNote) {
-            setNote(visionNote);
-          }
-        }
-      } catch {
-        setAiTaggingError("AI tagging failed");
-        setHasVisionResult(true);
-      } finally {
-        setIsAnalyzingImage(false);
-      }
-
       const cardRes = await fetch("/api/generate-cards", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           upload: {
-            note: noteToUse,
-            tags: mergedTags,
-            image_url: blobUrl,
+            note,
+            tags: selectedTags,
+            image_url: uploadedImageUrl,
           },
         }),
       });
@@ -265,7 +287,8 @@ export default function UploadPage() {
             )}
           </div>
 
-          {(isAnalyzingImage ||
+          {(isUploadingImage ||
+            isAnalyzingImage ||
             hasVisionResult ||
             aiTaggingError ||
             detectedBrand ||
@@ -276,6 +299,9 @@ export default function UploadPage() {
             suggestedTags.length) ? (
             <div className="rounded-2xl border border-gray-200 bg-white p-3">
               <div className="text-sm font-medium text-gray-500 mb-2">AI Suggested Tags</div>
+              {isUploadingImage ? (
+                <div className="text-xs text-gray-500 mb-2">Uploading image...</div>
+              ) : null}
               {isAnalyzingImage ? (
                 <div className="text-xs text-gray-500 mb-2">Analyzing image...</div>
               ) : null}
