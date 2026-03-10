@@ -614,8 +614,8 @@ export default function PersonaFeed() {
         </div>
       )}
 
-      {/* Style DNA */}
-      {dna?.one_liner && (
+      {/* Style DNA (temporarily hidden) */}
+      {false && dna?.one_liner && (
         <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92vw] max-w-xs">
           <motion.div
             layout
