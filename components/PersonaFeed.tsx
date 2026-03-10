@@ -3,7 +3,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import PersonaHeader from "./PersonaHeader";
 import {
   ensureEngagement,
   getEngagement,
@@ -582,7 +581,7 @@ export default function PersonaFeed() {
   if (!cards.length) {
     if (loadError) {
       return (
-        <div className="min-h-[100svh] px-6 pt-12 pb-24 flex flex-col items-center justify-center text-gray-600 gap-3 text-center">
+        <div className="min-h-[70svh] px-6 py-6 flex flex-col items-center justify-center text-gray-600 gap-3 text-center">
           <div>{loadError}</div>
           <button
             onClick={retryLoad}
@@ -596,7 +595,7 @@ export default function PersonaFeed() {
 
     if (isLoading) {
       return (
-        <div className="min-h-[100svh] w-screen bg-white px-4 pt-12 pb-24">
+        <div className="min-h-[70svh] w-screen bg-white px-4 py-4">
           <div className="mx-auto w-full max-w-md">
             <div className="rounded-2xl overflow-hidden border border-gray-200 bg-white animate-pulse">
               <div className="w-full aspect-[4/5] bg-gray-100" />
@@ -621,7 +620,7 @@ export default function PersonaFeed() {
     }
 
     return (
-      <div className="min-h-[100svh] px-4 pt-12 pb-24 flex items-center justify-center text-gray-500">
+      <div className="min-h-[70svh] px-4 py-6 flex items-center justify-center text-gray-500">
         Loading Persona…
       </div>
     );
@@ -629,16 +628,9 @@ export default function PersonaFeed() {
 
   return (
     <div className="w-screen min-h-[100svh] bg-white text-black">
-      {/* Top nav */}
-      <div className="sticky top-0 z-40 flex items-center h-12 px-4 bg-white border-b border-gray-200">
-        <div className="mx-auto flex h-full w-full max-w-md items-center justify-center">
-          <PersonaHeader className="w-full" />
-        </div>
-      </div>
-
       {/* Toast */}
       {toast && (
-        <div className="fixed top-20 right-4 z-50">
+        <div className="fixed top-14 right-4 z-50">
           <div className="rounded-full bg-black text-white text-xs px-3 py-2 shadow">
             {toast}
           </div>
@@ -718,9 +710,9 @@ export default function PersonaFeed() {
               transition={{ duration: 0.2 }}
             >
               <div className="h-auto md:h-full flex flex-col">
-                <div className="rounded-2xl shadow-xl bg-white h-auto max-h-none overflow-visible md:h-full md:overflow-hidden flex flex-col">
+                <div className="rounded-2xl shadow-xl bg-white h-auto overflow-visible md:h-full flex flex-col">
                 <div
-                  className="relative w-full aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
+                  className="relative w-full aspect-[4/4.5] md:aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
                   onDoubleClick={() => handleImageDoubleTap(active)}
                 >
                   <img
