@@ -3,6 +3,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import PersonaHeader from "./PersonaHeader";
+import {
+  ensureEngagement,
+  getEngagement,
+  readEngagement,
+  writeEngagement,
+  type EngagementMap,
+} from "@/lib/engagement";
 
 type Card = {
   id: string;
@@ -16,6 +23,9 @@ type Card = {
   source?: "community" | "editorial";
   creator_name?: string;
   creator_handle?: string;
+  likes_count?: number;
+  comments_count?: number;
+  collections_count?: number;
 };
 
 type StyleDNA = {
@@ -106,6 +116,7 @@ export default function PersonaFeed() {
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [engagement, setEngagement] = useState<EngagementMap>({});
   const loadingMoreRef = useRef(false);
   const heartBurstTimerRef = useRef<number | null>(null);
   const cursorRef = useRef(0);
@@ -133,10 +144,15 @@ export default function PersonaFeed() {
 
     return "From your adjacent tastes";
   }, [active, dna]);
+  const activeEngagement = useMemo(
+    () => (active?.id ? getEngagement(active.id, engagement) : getEngagement("")),
+    [active, engagement],
+  );
 
   useEffect(() => {
     const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
     setLikes(storedLikes);
+    setEngagement(readEngagement());
   }, []);
 
   useEffect(() => {
@@ -145,6 +161,11 @@ export default function PersonaFeed() {
       return;
     }
     setIsLiked(Boolean(likes[active.id]));
+    const ensured = ensureEngagement(active.id);
+    setEngagement((prev) => {
+      if (prev[active.id]) return prev;
+      return { ...prev, [active.id]: ensured };
+    });
   }, [active, likes]);
 
   useEffect(() => {
@@ -410,6 +431,18 @@ export default function PersonaFeed() {
 
     writeJSON("persona:saved", nextSaved);
     setSavedIds(nextSaved.map((c) => c.id));
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(card.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        collections_count: exists
+          ? Math.max(0, current.collections_count - 1)
+          : current.collections_count + 1,
+      };
+      const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
+    });
 
     // Small toast instead of alert
     setToast(exists ? "Removed from collection" : "Collected");
@@ -433,14 +466,27 @@ export default function PersonaFeed() {
 
   function toggleLike(card: Card) {
     setLikes((prev) => {
+      const wasLiked = Boolean(prev[card.id]);
       const next = { ...prev };
-      if (next[card.id]) {
+      if (wasLiked) {
         delete next[card.id];
       } else {
         next[card.id] = true;
       }
       writeJSON("persona:likes", next);
       setIsLiked(Boolean(next[card.id]));
+      setEngagement((prevEngagement) => {
+        const current = getEngagement(card.id, prevEngagement);
+        const nextCounts = {
+          ...current,
+          likes_count: wasLiked
+            ? Math.max(0, current.likes_count - 1)
+            : current.likes_count + 1,
+        };
+        const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
+        writeEngagement(nextEngagement);
+        return nextEngagement;
+      });
       return next;
     });
   }
@@ -451,6 +497,16 @@ export default function PersonaFeed() {
       const next = { ...prev, [card.id]: true };
       writeJSON("persona:likes", next);
       setIsLiked(true);
+      setEngagement((prevEngagement) => {
+        const current = getEngagement(card.id, prevEngagement);
+        const nextCounts = {
+          ...current,
+          likes_count: current.likes_count + 1,
+        };
+        const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
+        writeEngagement(nextEngagement);
+        return nextEngagement;
+      });
       return next;
     });
   }
@@ -741,6 +797,10 @@ export default function PersonaFeed() {
                         </svg>
                       </button>
                     </div>
+                  </div>
+                  <div className="mt-2 text-xs text-gray-500">
+                    ♥ {activeEngagement.likes_count} &nbsp; 💬 {activeEngagement.comments_count}
+                    &nbsp; 🔖 {activeEngagement.collections_count}
                   </div>
 
                   {expanded ? (

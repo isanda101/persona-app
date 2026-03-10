@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import PersonaHeader from "@/components/PersonaHeader";
+import {
+  getEngagement,
+  readEngagement,
+  writeEngagement,
+  type EngagementMap,
+} from "@/lib/engagement";
 
 type CardItem = {
   id: string;
@@ -15,6 +21,9 @@ type CardItem = {
   source?: "community" | "editorial";
   creator_name?: string;
   creator_handle?: string;
+  likes_count?: number;
+  comments_count?: number;
+  collections_count?: number;
 };
 
 function safeParseJSON<T>(raw: string | null, fallback: T): T {
@@ -46,6 +55,9 @@ function normalizeCard(value: unknown): CardItem | null {
   const source = obj.source === "community" ? "community" : "editorial";
   const creator_name = String(obj.creator_name || "").trim();
   const creator_handle = String(obj.creator_handle || "").trim();
+  const likes_count = Math.max(0, Number(obj.likes_count) || 0);
+  const comments_count = Math.max(0, Number(obj.comments_count) || 0);
+  const collections_count = Math.max(0, Number(obj.collections_count) || 0);
 
   return {
     id,
@@ -57,6 +69,9 @@ function normalizeCard(value: unknown): CardItem | null {
     source,
     creator_name: creator_name || undefined,
     creator_handle: creator_handle || undefined,
+    likes_count,
+    comments_count,
+    collections_count,
   };
 }
 
@@ -91,6 +106,7 @@ export default function PostDetailPage() {
   const [savedIds, setSavedIds] = useState<string[]>(() =>
     readCardsFromKey("persona:saved").map((card) => card.id),
   );
+  const [engagement, setEngagement] = useState<EngagementMap>(() => readEngagement());
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const post = useMemo(() => {
@@ -104,6 +120,10 @@ export default function PostDetailPage() {
     const pool = [...uploads, ...collection, ...saved, ...feedCache];
     return pool.find((card) => card.id === postId) || null;
   }, [postId]);
+  const postEngagement = useMemo(
+    () => (post?.id ? getEngagement(post.id, engagement) : getEngagement("")),
+    [post, engagement],
+  );
 
   function showActionMessage(message: string) {
     setActionMessage(message);
@@ -113,13 +133,26 @@ export default function PostDetailPage() {
   function toggleLike() {
     if (!post) return;
     setLikes((prev) => {
+      const wasLiked = Boolean(prev[post.id]);
       const next = { ...prev };
-      if (next[post.id]) {
+      if (wasLiked) {
         delete next[post.id];
       } else {
         next[post.id] = true;
       }
       localStorage.setItem("persona:likes", JSON.stringify(next));
+      setEngagement((prevEngagement) => {
+        const current = getEngagement(post.id, prevEngagement);
+        const nextCounts = {
+          ...current,
+          likes_count: wasLiked
+            ? Math.max(0, current.likes_count - 1)
+            : current.likes_count + 1,
+        };
+        const nextEngagement = { ...prevEngagement, [post.id]: nextCounts };
+        writeEngagement(nextEngagement);
+        return nextEngagement;
+      });
       return next;
     });
   }
@@ -159,6 +192,18 @@ export default function PostDetailPage() {
 
     localStorage.setItem("persona:saved", JSON.stringify(next));
     setSavedIds(next.map((card) => card.id));
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(post.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        collections_count: exists
+          ? Math.max(0, current.collections_count - 1)
+          : current.collections_count + 1,
+      };
+      const nextEngagement = { ...prevEngagement, [post.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
+    });
   }
 
   if (!post) {
@@ -272,6 +317,10 @@ export default function PostDetailPage() {
               >
                 {isCollected ? "Collected ✕" : "+ Collection"}
               </button>
+            </div>
+            <div className="mt-2 text-xs text-gray-500">
+              ♥ {postEngagement.likes_count} &nbsp; 💬 {postEngagement.comments_count}
+              &nbsp; 🔖 {postEngagement.collections_count}
             </div>
 
             {actionMessage ? (
