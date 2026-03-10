@@ -48,8 +48,8 @@ function sanitizeResult(raw: unknown): VisionResult {
 export async function POST(req: Request) {
   try {
     const body = (await req.json().catch(() => ({}))) as VisionBody;
-    const imageUrl = String(body?.image_url || "").trim();
-    if (!imageUrl) {
+    const image_url = String(body?.image_url || "").trim();
+    if (!image_url) {
       return NextResponse.json(EMPTY_RESULT);
     }
 
@@ -89,7 +89,7 @@ JSON ONLY.
           role: "user",
           content: [
             { type: "input_text", text: prompt },
-            { type: "input_image", image_url: imageUrl },
+            { type: "input_image", image_url, detail: "auto" },
           ],
         },
       ],
