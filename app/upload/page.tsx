@@ -29,6 +29,11 @@ export default function UploadPage() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [note, setNote] = useState("");
+  const [tagQuery, setTagQuery] = useState("");
+  const [availableTags, setAvailableTags] = useState<string[]>(
+    Array.from(new Set(OPTIONS.flatMap((section) => section.items)))
+  );
+  const [aiSuggestedTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -36,8 +41,8 @@ export default function UploadPage() {
   const hasReadyForm = Boolean(imageFile) && selectedTags.length > 0 && !isSubmitting;
 
   const allTags = useMemo(
-    () => Array.from(new Set(OPTIONS.flatMap((section) => section.items))),
-    []
+    () => Array.from(new Set(availableTags)),
+    [availableTags]
   );
 
   useEffect(() => {
@@ -45,6 +50,13 @@ export default function UploadPage() {
       if (imagePreviewUrl) URL.revokeObjectURL(imagePreviewUrl);
     };
   }, [imagePreviewUrl]);
+
+  useEffect(() => {
+    if (!aiSuggestedTags.length) return;
+
+    setAvailableTags((prev) => Array.from(new Set([...prev, ...aiSuggestedTags])));
+    setSelectedTags((prev) => Array.from(new Set([...prev, ...aiSuggestedTags])));
+  }, [aiSuggestedTags]);
 
   const onImageChange = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -60,6 +72,38 @@ export default function UploadPage() {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((item) => item !== tag) : [...prev, tag]
     );
+  };
+
+  const normalizeForMatch = (value: string) =>
+    value
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const normalizedQueryRaw = tagQuery.trim();
+  const normalizedQuery = normalizeForMatch(normalizedQueryRaw);
+  const selectedSet = new Set(selectedTags.map((item) => normalizeForMatch(item)));
+  const availableSet = new Set(allTags.map((item) => normalizeForMatch(item)));
+  const showAddCustom =
+    normalizedQueryRaw.length >= 2 &&
+    !selectedSet.has(normalizedQuery) &&
+    !availableSet.has(normalizedQuery);
+
+  const addCustomTag = () => {
+    if (!showAddCustom) return;
+    const customTag = normalizedQueryRaw;
+    setAvailableTags((prev) =>
+      prev.some((item) => normalizeForMatch(item) === normalizeForMatch(customTag))
+        ? prev
+        : [customTag, ...prev]
+    );
+    setSelectedTags((prev) =>
+      prev.some((item) => normalizeForMatch(item) === normalizeForMatch(customTag))
+        ? prev
+        : [...prev, customTag]
+    );
+    setTagQuery("");
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
@@ -177,17 +221,100 @@ export default function UploadPage() {
               <div className="text-xs text-gray-400">{selectedTags.length} selected</div>
             </div>
 
-            <div className="space-y-5">
-              {OPTIONS.map((section) => (
-                <div key={section.group}>
-                  <div className="text-sm font-medium text-gray-500 mb-3">{section.group}</div>
-                  <div className="flex flex-wrap gap-2">
-                    {section.items.map((tag) => {
-                      const on = selectedTags.includes(tag);
-                      return (
-                        <button
-                          key={tag}
-                          type="button"
+            <input
+              value={tagQuery}
+              onChange={(e) => setTagQuery(e.target.value)}
+              placeholder="Search tags, brands, styles..."
+              className="w-full px-3 py-2 rounded-xl border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+            />
+            {showAddCustom ? (
+              <button
+                type="button"
+                onClick={addCustomTag}
+                className="mt-2 px-3 py-2 rounded-full text-sm border bg-white text-black border-gray-300"
+              >
+                + Add &quot;{normalizedQueryRaw}&quot;
+              </button>
+            ) : null}
+
+            {selectedTags.length ? (
+              <div className="mt-4">
+                <div className="text-sm text-gray-500 mb-2">Selected Tags</div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedTags.map((tag) => (
+                    <button
+                      key={tag}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className="px-3 py-1 rounded-full bg-black text-white text-sm"
+                    >
+                      {tag} ✕
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="space-y-5 mt-4">
+              {OPTIONS.map((section) => {
+                  const sectionItems = section.items.filter((tag) =>
+                    allTags.some((item) => normalizeForMatch(item) === normalizeForMatch(tag))
+                  );
+                  const filteredItems = normalizedQuery
+                    ? sectionItems.filter((tag) =>
+                        normalizeForMatch(tag).includes(normalizedQuery)
+                      )
+                    : sectionItems;
+
+                  if (!filteredItems.length) return null;
+
+                  return (
+                    <div key={section.group}>
+                      <div className="text-sm font-medium text-gray-500 mb-3">{section.group}</div>
+                      <div className="flex flex-wrap gap-2">
+                        {filteredItems.map((tag) => {
+                          const on = selectedTags.includes(tag);
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => toggleTag(tag)}
+                              className={`px-3 py-2 rounded-full text-sm border ${
+                                on
+                                  ? "bg-black text-white border-black"
+                                  : "bg-white text-black border-gray-300"
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+              })}
+
+              {(() => {
+                const baseSet = new Set(OPTIONS.flatMap((section) => section.items));
+                const customItems = allTags.filter((tag) => !baseSet.has(tag));
+                const filteredCustom = normalizedQuery
+                  ? customItems.filter((tag) =>
+                      normalizeForMatch(tag).includes(normalizedQuery)
+                    )
+                  : customItems;
+
+                if (!filteredCustom.length) return null;
+
+                return (
+                  <div>
+                    <div className="text-sm font-medium text-gray-500 mb-3">Custom</div>
+                    <div className="flex flex-wrap gap-2">
+                      {filteredCustom.map((tag) => {
+                        const on = selectedTags.includes(tag);
+                        return (
+                          <button
+                            key={tag}
+                            type="button"
                           onClick={() => toggleTag(tag)}
                           className={`px-3 py-2 rounded-full text-sm border ${
                             on
@@ -196,12 +323,21 @@ export default function UploadPage() {
                           }`}
                         >
                           {tag}
-                        </button>
-                      );
-                    })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })()}
+              {aiSuggestedTags.length ? (
+                <div>
+                  <div className="text-sm font-medium text-gray-500 mb-3">AI Suggested</div>
+                  <div className="text-xs text-gray-400">
+                    Suggested tags are auto-selected; tap a selected pill above to remove any.
                   </div>
                 </div>
-              ))}
+              ) : null}
 
               {allTags.length === 0 ? <div className="text-sm text-gray-400">No tags available.</div> : null}
             </div>
