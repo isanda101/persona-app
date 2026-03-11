@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 
 const OPTIONS = [
@@ -30,6 +30,7 @@ const OPTIONS = [
 export default function UploadPage() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
+  const { user } = useUser();
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [note, setNote] = useState("");
@@ -345,6 +346,19 @@ export default function UploadPage() {
     setError("");
 
     try {
+      const emailLocalPart = String(user?.primaryEmailAddress?.emailAddress || "")
+        .split("@")[0]
+        .trim();
+      const creatorName = String(
+        user?.fullName ||
+        user?.firstName ||
+        user?.username ||
+        emailLocalPart ||
+        "You"
+      ).trim();
+      const creatorHandleBase = String(user?.username || emailLocalPart || "you").trim().replace(/^@+/, "");
+      const creatorHandle = `@${creatorHandleBase || "you"}`;
+
       const finalTags = selectedTags.length
         ? selectedTags
         : suggestedTags.length
@@ -372,8 +386,8 @@ export default function UploadPage() {
             tags: finalTags,
             image_url: uploadedImageUrl,
             editorial: finalEditorial,
-            creator_name: "You",
-            creator_handle: "@you",
+            creator_name: creatorName,
+            creator_handle: creatorHandle,
           },
         }),
       });
@@ -391,8 +405,8 @@ export default function UploadPage() {
 
       const newCard = {
         ...cardData.cards[0],
-        creator_name: String(cardData.cards[0]?.creator_name || "You"),
-        creator_handle: String(cardData.cards[0]?.creator_handle || "@you"),
+        creator_name: String(cardData.cards[0]?.creator_name || creatorName),
+        creator_handle: String(cardData.cards[0]?.creator_handle || creatorHandle),
       };
       const existingRaw = localStorage.getItem("persona:uploads") || "[]";
       const parsedExisting = JSON.parse(existingRaw);
