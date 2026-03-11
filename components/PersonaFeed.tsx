@@ -773,18 +773,25 @@ export default function PersonaFeed() {
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
 
                   <div className="mt-2 flex items-center justify-between">
-                    {!expanded ? (
-                      <button onClick={() => setExpanded(true)} className="text-sm underline">
-                        Read more
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setExpanded(false)}
-                        className="text-sm underline text-gray-700"
-                      >
-                        Show less
-                      </button>
-                    )}
+                    <div className="flex items-center gap-3">
+                      {!expanded ? (
+                        <button onClick={() => setExpanded(true)} className="text-sm underline">
+                          Read more
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setExpanded(false)}
+                          className="text-sm underline text-gray-700"
+                        >
+                          Show less
+                        </button>
+                      )}
+                      <div className="text-xs text-gray-500 flex items-center gap-2">
+                        <span>♥ {activeEngagement.likes_count}</span>
+                        <span>💬 {activeEngagement.comments_count}</span>
+                        <span>🔖 {activeEngagement.collections_count}</span>
+                      </div>
+                    </div>
                     <div
                       onPointerDown={(e) => e.stopPropagation()}
                       className="flex items-center gap-3 text-gray-600"
@@ -847,15 +854,11 @@ export default function PersonaFeed() {
                       </button>
                     </div>
                   </div>
-                  <div className="mt-2 text-xs text-gray-500">
-                    ♥ {activeEngagement.likes_count} &nbsp; 💬 {activeEngagement.comments_count}
-                    &nbsp; 🔖 {activeEngagement.collections_count}
-                  </div>
 
                   {expanded ? (
                     <div
                       onPointerDown={(e) => e.stopPropagation()}
-                      className="mt-2 text-sm text-gray-700 max-h-[30vh] overflow-y-auto pr-1 leading-relaxed"
+                      className="mt-2 text-sm text-gray-700 leading-relaxed"
                     >
                       {active.caption_long}
                     </div>
