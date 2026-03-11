@@ -690,11 +690,11 @@ export default function PersonaFeed() {
       )}
 
       <main className="mx-auto w-full max-w-md px-4">
-        <div className="h-auto md:h-[calc(100svh-9rem)]">
+        <div>
           <AnimatePresence mode="wait">
             <motion.div
               key={active.id}
-              className="w-full h-auto md:h-full"
+              className="w-full"
               style={{ touchAction: "none" }}
               drag="y"
               dragConstraints={{ top: 0, bottom: 0 }}
@@ -709,10 +709,10 @@ export default function PersonaFeed() {
               exit={{ y: -50, opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              <div className="h-auto md:h-full flex flex-col">
+              <div className="flex flex-col">
                 <div className="rounded-2xl shadow-xl bg-white h-auto overflow-visible md:h-full flex flex-col">
                 <div
-                  className="relative w-full aspect-[4/4.2] md:aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
+                  className="relative w-full aspect-[4/3.8] md:aspect-[4/5] overflow-hidden rounded-t-2xl bg-gray-100"
                   onDoubleClick={() => handleImageDoubleTap(active)}
                 >
                   <img
@@ -736,7 +736,7 @@ export default function PersonaFeed() {
                   </AnimatePresence>
                 </div>
 
-                <div className="p-4 overflow-visible md:flex-1 md:overflow-y-auto">
+                <div className="p-4 overflow-visible">
                   <div className="text-xs text-gray-500">
                     {active.tags.slice(0, 5).join(" • ")}
                   </div>
