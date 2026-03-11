@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useMemo } from "react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
+import { readProfile } from "@/lib/profile";
 
 type CardItem = {
   id: string;
@@ -55,16 +56,23 @@ export default function UserHandlePage() {
   const { user } = useUser();
   const params = useParams<{ handle: string }>();
   const handle = String(params?.handle || "").trim().replace(/^@+/, "");
-  const normalizedHandle = handle ? `@${handle}` : "@user";
-  const isOwnProfile = handle.toLowerCase() === "you";
-  const profileName = String(user?.fullName || user?.firstName || user?.username || "Persona User").trim();
-  const profileIdentity = (() => {
-    const username = String(user?.username || "").trim();
-    if (username) return `@${username.replace(/^@+/, "")}`;
-    const email = String(user?.primaryEmailAddress?.emailAddress || "").trim();
-    if (email) return email;
-    return normalizedHandle;
-  })();
+  const localProfile = readProfile();
+  const ownUsername = String(localProfile?.username || user?.username || "").trim().replace(/^@+/, "");
+  const isOwnProfile =
+    handle.toLowerCase() === "you" ||
+    (isSignedIn && ownUsername && handle.toLowerCase() === ownUsername.toLowerCase());
+  const resolvedHandle = isOwnProfile
+    ? ownUsername || handle || "user"
+    : handle || "user";
+  const normalizedHandle = `@${resolvedHandle}`;
+  const profileName = String(
+    localProfile?.display_name ||
+    user?.fullName ||
+    user?.firstName ||
+    user?.username ||
+    "Persona User",
+  ).trim();
+  const profileIdentity = ownUsername ? `@${ownUsername}` : normalizedHandle;
 
   const posts = useMemo(() => {
     if (typeof window === "undefined") return [] as CardItem[];
@@ -78,13 +86,13 @@ export default function UserHandlePage() {
     for (const card of pool) {
       if (!card.id || seen.has(card.id)) continue;
       const cardHandle = String(card.creator_handle || "").trim().replace(/^@+/, "").toLowerCase();
-      if (cardHandle !== handle.toLowerCase()) continue;
+      if (cardHandle !== resolvedHandle.toLowerCase()) continue;
       seen.add(card.id);
       out.push(card);
     }
 
     return out;
-  }, [handle]);
+  }, [resolvedHandle]);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">

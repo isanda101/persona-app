@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
+import { readProfile } from "@/lib/profile";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -346,17 +347,17 @@ export default function UploadPage() {
     setError("");
 
     try {
-      const emailLocalPart = String(user?.primaryEmailAddress?.emailAddress || "")
-        .split("@")[0]
-        .trim();
+      const localProfile = readProfile();
       const creatorName = String(
+        localProfile?.display_name ||
         user?.fullName ||
         user?.firstName ||
         user?.username ||
-        emailLocalPart ||
         "You"
       ).trim();
-      const creatorHandleBase = String(user?.username || emailLocalPart || "you").trim().replace(/^@+/, "");
+      const creatorHandleBase = String(localProfile?.username || user?.username || "you")
+        .trim()
+        .replace(/^@+/, "");
       const creatorHandle = `@${creatorHandleBase || "you"}`;
 
       const finalTags = selectedTags.length

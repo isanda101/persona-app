@@ -12,6 +12,7 @@ import {
   type EngagementMap,
 } from "@/lib/engagement";
 import { addComment, getComments, type PersonaComment } from "@/lib/comments";
+import { readProfile } from "@/lib/profile";
 
 type CardItem = {
   id: string;
@@ -240,17 +241,15 @@ export default function PostDetailPage() {
     const text = commentText.trim();
     if (!text) return;
 
-    const emailLocalPart = String(user?.primaryEmailAddress?.emailAddress || "")
-      .split("@")[0]
-      .trim();
+    const localProfile = readProfile();
     const authorName = String(
+      localProfile?.display_name ||
       user?.fullName ||
       user?.firstName ||
       user?.username ||
-      emailLocalPart ||
       "Persona User"
     ).trim();
-    const handleBase = String(user?.username || emailLocalPart || "user").replace(/^@+/, "").trim();
+    const handleBase = String(localProfile?.username || user?.username || "user").replace(/^@+/, "").trim();
     const authorHandle = `@${handleBase || "user"}`;
 
     const comment: PersonaComment = {
