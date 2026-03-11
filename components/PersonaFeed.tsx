@@ -3,6 +3,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@clerk/nextjs";
 import {
   ensureEngagement,
   getEngagement,
@@ -97,6 +99,8 @@ function img(topic: string) {
 }
 
 export default function PersonaFeed() {
+  const router = useRouter();
+  const { isSignedIn } = useAuth();
   const [cards, setCards] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
@@ -445,6 +449,14 @@ export default function PersonaFeed() {
   }
 
   async function saveCard(card: Card) {
+    if (!isSignedIn) {
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : "/";
+      router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
     const savedAll = readJSON<Card[]>("persona:saved", []);
 
     // Same id-based toggle behavior for every card source.
@@ -489,6 +501,14 @@ export default function PersonaFeed() {
   }
 
   function toggleLike(card: Card) {
+    if (!isSignedIn) {
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : "/";
+      router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
     setLikes((prev) => {
       const wasLiked = Boolean(prev[card.id]);
       const next = { ...prev };
@@ -516,6 +536,14 @@ export default function PersonaFeed() {
   }
 
   function likeCard(card: Card) {
+    if (!isSignedIn) {
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : "/";
+      router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
     setLikes((prev) => {
       if (prev[card.id]) return prev;
       const next = { ...prev, [card.id]: true };
@@ -536,6 +564,14 @@ export default function PersonaFeed() {
   }
 
   function handleImageDoubleTap(card: Card) {
+    if (!isSignedIn) {
+      const redirectUrl = typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : "/";
+      router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+      return;
+    }
+
     if (!isLiked) {
       likeCard(card);
     }
@@ -815,7 +851,16 @@ export default function PersonaFeed() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => showActionToast("Comments coming soon")}
+                        onClick={() => {
+                          if (!isSignedIn) {
+                            const redirectUrl = typeof window !== "undefined"
+                              ? `${window.location.pathname}${window.location.search}`
+                              : "/";
+                            router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+                            return;
+                          }
+                          showActionToast("Comments coming soon");
+                        }}
                         className="hover:text-black active:scale-95 transition"
                         aria-label="Chat"
                       >

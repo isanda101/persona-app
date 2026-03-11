@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMemo } from "react";
+import { useAuth } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 
 type CardItem = {
@@ -50,6 +51,7 @@ function readCardArray(key: string): CardItem[] {
 }
 
 export default function UserHandlePage() {
+  const { isSignedIn } = useAuth();
   const params = useParams<{ handle: string }>();
   const handle = String(params?.handle || "").trim().replace(/^@+/, "");
   const normalizedHandle = handle ? `@${handle}` : "@user";
@@ -81,6 +83,19 @@ export default function UserHandlePage() {
         <PersonaHeader showBack />
         <h1 className="text-2xl font-semibold mt-2">{normalizedHandle}</h1>
         <p className="text-sm text-gray-500 mt-1">{posts.length} posts</p>
+        {isOwnProfile && !isSignedIn ? (
+          <div className="mt-4 rounded-lg border border-gray-200 p-3">
+            <div className="text-sm text-gray-700">Sign in to like, collect, and post on Persona.</div>
+            <div className="mt-3 flex gap-2">
+              <Link href="/sign-in" className="px-3 py-2 rounded-lg bg-black text-white text-sm">
+                Sign in
+              </Link>
+              <Link href="/sign-up" className="px-3 py-2 rounded-lg border border-gray-300 text-sm">
+                Sign up
+              </Link>
+            </div>
+          </div>
+        ) : null}
         {isOwnProfile ? (
           <div className="mt-6 border-t border-gray-200 pt-4">
             <div className="text-sm font-medium text-gray-500 mb-2">Preferences</div>

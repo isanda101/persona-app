@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useAuth } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
   getEngagement,
@@ -98,6 +99,8 @@ function sourceLabel(card: CardItem) {
 }
 
 export default function PostDetailPage() {
+  const router = useRouter();
+  const { isSignedIn } = useAuth();
   const params = useParams<{ id: string }>();
   const postId = decodeURIComponent(String(params?.id || ""));
   const [likes, setLikes] = useState<Record<string, boolean>>(() =>
@@ -130,8 +133,20 @@ export default function PostDetailPage() {
     window.setTimeout(() => setActionMessage(null), 1500);
   }
 
+  function redirectToSignIn() {
+    const redirectUrl =
+      typeof window !== "undefined"
+        ? `${window.location.pathname}${window.location.search}`
+        : "/";
+    router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
+  }
+
   function toggleLike() {
     if (!post) return;
+    if (!isSignedIn) {
+      redirectToSignIn();
+      return;
+    }
     setLikes((prev) => {
       const wasLiked = Boolean(prev[post.id]);
       const next = { ...prev };
@@ -184,6 +199,10 @@ export default function PostDetailPage() {
 
   function toggleCollection() {
     if (!post) return;
+    if (!isSignedIn) {
+      redirectToSignIn();
+      return;
+    }
     const saved = readCardsFromKey("persona:saved");
     const exists = saved.some((card) => card.id === post.id);
     const next = exists
@@ -267,7 +286,13 @@ export default function PostDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => showActionMessage("Comments coming soon")}
+                  onClick={() => {
+                    if (!isSignedIn) {
+                      redirectToSignIn();
+                      return;
+                    }
+                    showActionMessage("Comments coming soon");
+                  }}
                   className="hover:text-black active:scale-95 transition"
                   aria-label="Comment"
                 >

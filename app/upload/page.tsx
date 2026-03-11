@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
+import { useAuth } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 
 const OPTIONS = [
@@ -27,6 +29,7 @@ const OPTIONS = [
 
 export default function UploadPage() {
   const router = useRouter();
+  const { isSignedIn } = useAuth();
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
   const [note, setNote] = useState("");
@@ -404,6 +407,37 @@ export default function UploadPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!isSignedIn) {
+    return (
+      <div className="min-h-screen bg-white text-black px-5 py-8">
+        <div className="max-w-md mx-auto">
+          <PersonaHeader showBack />
+          <h1 className="text-2xl font-semibold mt-2">Create Editorial Card</h1>
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
+            <div className="text-base font-medium">Sign in to post on Persona.</div>
+            <div className="text-sm text-gray-600 mt-2">
+              You can browse the feed as a guest. Sign in to upload and publish posts.
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Link
+                href="/sign-in"
+                className="px-4 py-2 rounded-lg bg-black text-white text-sm"
+              >
+                Sign in
+              </Link>
+              <Link
+                href="/sign-up"
+                className="px-4 py-2 rounded-lg border border-gray-300 text-sm"
+              >
+                Sign up
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
