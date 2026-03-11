@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
   getEngagement,
@@ -11,6 +11,7 @@ import {
   writeEngagement,
   type EngagementMap,
 } from "@/lib/engagement";
+import { addComment, getComments, type PersonaComment } from "@/lib/comments";
 
 type CardItem = {
   id: string;
@@ -101,6 +102,7 @@ function sourceLabel(card: CardItem) {
 export default function PostDetailPage() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
+  const { user } = useUser();
   const params = useParams<{ id: string }>();
   const postId = decodeURIComponent(String(params?.id || ""));
   const [likes, setLikes] = useState<Record<string, boolean>>(() =>
@@ -110,6 +112,8 @@ export default function PostDetailPage() {
     readCardsFromKey("persona:saved").map((card) => card.id),
   );
   const [engagement, setEngagement] = useState<EngagementMap>(() => readEngagement());
+  const [comments, setComments] = useState<PersonaComment[]>(() => getComments(postId));
+  const [commentText, setCommentText] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   const post = useMemo(() => {
@@ -225,6 +229,53 @@ export default function PostDetailPage() {
     });
   }
 
+  function formatCommentTimestamp(createdAt: number) {
+    const ts = Number(createdAt) || 0;
+    if (!ts) return "";
+    return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function handleSubmitComment() {
+    if (!post || !isSignedIn) return;
+    const text = commentText.trim();
+    if (!text) return;
+
+    const emailLocalPart = String(user?.primaryEmailAddress?.emailAddress || "")
+      .split("@")[0]
+      .trim();
+    const authorName = String(
+      user?.fullName ||
+      user?.firstName ||
+      user?.username ||
+      emailLocalPart ||
+      "Persona User"
+    ).trim();
+    const handleBase = String(user?.username || emailLocalPart || "user").replace(/^@+/, "").trim();
+    const authorHandle = `@${handleBase || "user"}`;
+
+    const comment: PersonaComment = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      author_name: authorName,
+      author_handle: authorHandle,
+      text,
+      created_at: Date.now(),
+    };
+
+    const nextComments = addComment(post.id, comment);
+    setComments(nextComments);
+    setCommentText("");
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(post.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        comments_count: current.comments_count + 1,
+      };
+      const nextEngagement = { ...prevEngagement, [post.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
+    });
+  }
+
   if (!post) {
     return (
       <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -287,11 +338,9 @@ export default function PostDetailPage() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (!isSignedIn) {
-                      redirectToSignIn();
-                      return;
-                    }
-                    showActionMessage("Comments coming soon");
+                    const section = document.getElementById(`comments-${post.id}`);
+                    if (!section) return;
+                    section.scrollIntoView({ behavior: "smooth", block: "start" });
                   }}
                   className="hover:text-black active:scale-95 transition"
                   aria-label="Comment"
@@ -357,6 +406,62 @@ export default function PostDetailPage() {
             </div>
             <div className="mt-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
               {post.caption_long || "No editorial text available."}
+            </div>
+
+            <div id={`comments-${post.id}`} className="mt-6 border-t border-gray-200 pt-4">
+              <div className="text-sm font-medium text-gray-700">Comments</div>
+
+              {isSignedIn ? (
+                <div className="mt-3">
+                  <textarea
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    placeholder="Add a comment"
+                    rows={3}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10"
+                  />
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={handleSubmitComment}
+                      disabled={!commentText.trim()}
+                      className={`px-3 py-2 rounded-lg text-sm ${
+                        commentText.trim()
+                          ? "bg-black text-white"
+                          : "bg-gray-200 text-gray-500"
+                      }`}
+                    >
+                      Post
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-3 rounded-lg border border-gray-200 p-3">
+                  <div className="text-sm text-gray-600">Sign in to comment.</div>
+                  <div className="mt-2">
+                    <Link
+                      href={`/sign-in?redirect_url=${encodeURIComponent(typeof window !== "undefined" ? window.location.pathname : `/post/${encodeURIComponent(post.id)}`)}`}
+                      className="inline-block px-3 py-2 rounded-lg bg-black text-white text-sm"
+                    >
+                      Sign in
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-4 space-y-3">
+                {comments.length ? comments.map((comment) => (
+                  <div key={comment.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    <div className="text-xs text-gray-500">
+                      {comment.author_handle || comment.author_name}
+                      {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
+                    </div>
+                    <div className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{comment.text}</div>
+                  </div>
+                )) : (
+                  <div className="text-sm text-gray-500">No comments yet.</div>
+                )}
+              </div>
             </div>
           </div>
         </div>

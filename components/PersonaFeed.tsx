@@ -173,6 +173,19 @@ export default function PersonaFeed() {
   }, []);
 
   useEffect(() => {
+    function refreshEngagementFromStorage() {
+      setEngagement(readEngagement());
+    }
+
+    window.addEventListener("focus", refreshEngagementFromStorage);
+    document.addEventListener("visibilitychange", refreshEngagementFromStorage);
+    return () => {
+      window.removeEventListener("focus", refreshEngagementFromStorage);
+      document.removeEventListener("visibilitychange", refreshEngagementFromStorage);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!active?.id) {
       setIsLiked(false);
       return;
@@ -852,14 +865,7 @@ export default function PersonaFeed() {
                       </button>
                       <button
                         onClick={() => {
-                          if (!isSignedIn) {
-                            const redirectUrl = typeof window !== "undefined"
-                              ? `${window.location.pathname}${window.location.search}`
-                              : "/";
-                            router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
-                            return;
-                          }
-                          showActionToast("Comments coming soon");
+                          router.push(`/post/${encodeURIComponent(active.id)}`);
                         }}
                         className="hover:text-black active:scale-95 transition"
                         aria-label="Chat"
