@@ -12,6 +12,12 @@ import {
   writeEngagement,
   type EngagementMap,
 } from "@/lib/engagement";
+import {
+  isTagFollowed,
+  readFollowedTags,
+  toggleFollowedTag,
+  normalizeTag as normalizeFollowedTag,
+} from "@/lib/followedTags";
 
 type Card = {
   id: string;
@@ -133,6 +139,7 @@ export default function PersonaFeed() {
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [engagement, setEngagement] = useState<EngagementMap>({});
+  const [followedTags, setFollowedTags] = useState<string[]>([]);
   const loadingMoreRef = useRef(false);
   const heartBurstTimerRef = useRef<number | null>(null);
   const cursorRef = useRef(0);
@@ -182,6 +189,7 @@ export default function PersonaFeed() {
     const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
     setLikes(storedLikes);
     setEngagement(readEngagement());
+    setFollowedTags(readFollowedTags());
   }, []);
 
   useEffect(() => {
@@ -356,7 +364,16 @@ export default function PersonaFeed() {
     savedAll?: Card[],
     options?: { limit?: number },
   ) {
-    const tastes = readJSON<string[]>("persona:taste", []);
+    const storedTasteTags = readJSON<string[]>("persona:taste", []);
+    const followed = readFollowedTags();
+    const tastes = Array.from(
+      new Map(
+        [...storedTasteTags, ...followed]
+          .map((tag) => String(tag || "").trim())
+          .filter(Boolean)
+          .map((tag) => [normalizeFollowedTag(tag), tag]),
+      ).values(),
+    );
     const savedSource = savedAll ?? readJSON<Card[]>("persona:saved", []);
     const batchLimit = Math.max(1, Math.min(Number(options?.limit || (mode === "replace" ? 5 : 12)), 12));
     const saved: SavedSignal[] = Array.isArray(savedSource)
@@ -670,6 +687,15 @@ export default function PersonaFeed() {
     return `/u/${raw.replace(/^@+/, "")}`;
   }
 
+  function handleToggleFollowTag(tag: string) {
+    const clean = String(tag || "").trim();
+    if (!clean) return;
+    const result = toggleFollowedTag(clean);
+    setFollowedTags(result.tags);
+    setToast(result.followed ? `Followed ${clean}` : `Unfollowed ${clean}`);
+    window.setTimeout(() => setToast(null), 900);
+  }
+
   async function handleShare() {
     const shareUrl = window.location.href;
     if (navigator.share) {
@@ -852,8 +878,28 @@ export default function PersonaFeed() {
                 </div>
 
                 <div className="p-4 overflow-visible">
-                  <div className="text-xs text-gray-500">
-                    {active.tags.slice(0, 5).join(" • ")}
+                  <div className="flex flex-wrap gap-1.5">
+                    {active.tags.slice(0, 5).map((tag) => {
+                      const followed = isTagFollowed(tag, followedTags);
+                      return (
+                        <button
+                          key={`${active.id}-${tag}`}
+                          type="button"
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleFollowTag(tag);
+                          }}
+                          className={`px-2 py-1 rounded-full text-[11px] border transition ${
+                            followed
+                              ? "bg-black text-white border-black"
+                              : "bg-white text-gray-600 border-gray-300"
+                          }`}
+                        >
+                          {tag}
+                        </button>
+                      );
+                    })}
                   </div>
                   {active.source === "community" ? (
                     <div className="mt-1 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">

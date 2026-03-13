@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
+import { readFollowedTags } from "@/lib/followedTags";
 
 type CardItem = {
   id: string;
@@ -111,6 +112,7 @@ export default function UserHandlePage() {
 
     return out;
   }, [resolvedHandle]);
+  const followedTags = useMemo(() => readFollowedTags(), []);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -178,6 +180,25 @@ export default function UserHandlePage() {
                     <span>Refine tastes</span>
                     <span className="text-gray-400">→</span>
                   </Link>
+                </div>
+                <div className="mt-4">
+                  <div className="text-sm font-medium text-gray-500 mb-2">Taste</div>
+                  <div className="text-xs text-gray-500 mb-2">Following Tags</div>
+                  {followedTags.length ? (
+                    <div className="flex flex-wrap gap-2">
+                      {followedTags.map((tag) => (
+                        <Link
+                          key={tag}
+                          href={`/search?q=${encodeURIComponent(tag)}`}
+                          className="px-2.5 py-1 rounded-full text-xs border border-gray-300 text-gray-700 hover:text-black hover:border-gray-400"
+                        >
+                          {tag}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">No followed tags yet.</div>
+                  )}
                 </div>
                 <div className="mt-4 space-y-2">
                   <Link
