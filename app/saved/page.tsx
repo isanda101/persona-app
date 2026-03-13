@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import PersonaHeader from "@/components/PersonaHeader";
 
@@ -156,6 +157,8 @@ function compactTitle(card: CardItem) {
 }
 
 function creatorLine(card: CardItem) {
+  const cleanHandle = String(card.creator_handle || "").trim().replace(/^@+/, "");
+  if (cleanHandle) return `by @${cleanHandle}`;
   if (card.source === "community") return "by @you";
   return "Persona Editorial";
 }
@@ -168,6 +171,12 @@ type SectionProps = {
 };
 
 function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: SectionProps) {
+  const router = useRouter();
+
+  function cleanHandle(handle?: string) {
+    return String(handle || "").trim().replace(/^@+/, "");
+  }
+
   return (
     <section className="mt-5">
       {items.length === 0 ? <div className="text-sm text-gray-500">{emptyText}</div> : null}
@@ -186,7 +195,23 @@ function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: S
                 <div className="p-2">
                   <div className="text-sm font-medium truncate">{compactTitle(card)}</div>
                   {creatorLine(card) ? (
-                    <div className="text-xs text-gray-500 mt-0.5 truncate">{creatorLine(card)}</div>
+                    <div className="text-xs text-gray-500 mt-0.5 truncate">
+                      {cleanHandle(card.creator_handle) ? (
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            router.push(`/u/${encodeURIComponent(cleanHandle(card.creator_handle))}`);
+                          }}
+                          className="hover:text-gray-700 active:text-black transition-colors"
+                        >
+                          {creatorLine(card)}
+                        </button>
+                      ) : (
+                        creatorLine(card)
+                      )}
+                    </div>
                   ) : null}
                   <div className="text-xs text-gray-500 mt-1 truncate">
                     {card.tags.length ? card.tags.slice(0, 4).join(" • ") : "No tags"}

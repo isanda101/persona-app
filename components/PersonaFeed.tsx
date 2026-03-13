@@ -601,7 +601,7 @@ export default function PersonaFeed() {
   function creatorHrefFromHandle(handle?: string) {
     const raw = String(handle || "").trim();
     if (!raw) return "";
-    return `/u/${raw.replace(/^@/, "")}`;
+    return `/u/${raw.replace(/^@+/, "")}`;
   }
 
   async function handleShare() {

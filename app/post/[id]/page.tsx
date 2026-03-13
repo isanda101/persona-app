@@ -99,6 +99,15 @@ function sourceLabel(card: CardItem) {
   return card.source === "community" ? "Persona Community" : "Persona Editorial";
 }
 
+function cleanHandle(handle?: string) {
+  return String(handle || "").trim().replace(/^@+/, "");
+}
+
+function formatHandle(handle?: string) {
+  const clean = cleanHandle(handle);
+  return clean ? `@${clean}` : "";
+}
+
 export default function PostDetailPage() {
   const router = useRouter();
   const { isSignedIn, user } = useUser();
@@ -289,6 +298,7 @@ export default function PostDetailPage() {
   const title = post.caption_short || post.topic || "Untitled";
   const isLiked = Boolean(likes[post.id]);
   const isCollected = savedIds.includes(post.id);
+  const creatorHandle = cleanHandle(post.creator_handle);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -304,7 +314,18 @@ export default function PostDetailPage() {
           />
           <div className="p-4">
             <div className="text-xl font-semibold">{title}</div>
-            <div className="mt-1 text-xs text-gray-500">{creatorLine(post)}</div>
+            <div className="mt-1 text-xs text-gray-500">
+              {creatorHandle ? (
+                <Link
+                  href={`/u/${encodeURIComponent(creatorHandle)}`}
+                  className="hover:text-gray-700 active:text-black transition-colors"
+                >
+                  by {formatHandle(post.creator_handle)}
+                </Link>
+              ) : (
+                creatorLine(post)
+              )}
+            </div>
             <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
               {sourceLabel(post)}
             </div>
@@ -461,7 +482,16 @@ export default function PostDetailPage() {
                 {comments.length ? comments.map((comment) => (
                   <div key={comment.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                     <div className="text-xs text-gray-500">
-                      {comment.author_handle || comment.author_name}
+                      {cleanHandle(comment.author_handle) ? (
+                        <Link
+                          href={`/u/${encodeURIComponent(cleanHandle(comment.author_handle))}`}
+                          className="hover:text-gray-700 active:text-black transition-colors"
+                        >
+                          {formatHandle(comment.author_handle)}
+                        </Link>
+                      ) : (
+                        comment.author_name
+                      )}
                       {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
                     </div>
                     <div className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{comment.text}</div>
