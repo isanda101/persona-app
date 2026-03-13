@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
   getEngagement,
@@ -12,7 +12,6 @@ import {
   type EngagementMap,
 } from "@/lib/engagement";
 import { addComment, getComments, type PersonaComment } from "@/lib/comments";
-import { readProfile } from "@/lib/profile";
 
 type CardItem = {
   id: string;
@@ -102,8 +101,7 @@ function sourceLabel(card: CardItem) {
 
 export default function PostDetailPage() {
   const router = useRouter();
-  const { isSignedIn } = useAuth();
-  const { user } = useUser();
+  const { isSignedIn, user } = useUser();
   const params = useParams<{ id: string }>();
   const postId = decodeURIComponent(String(params?.id || ""));
   const [likes, setLikes] = useState<Record<string, boolean>>(() =>
@@ -116,6 +114,7 @@ export default function PostDetailPage() {
   const [comments, setComments] = useState<PersonaComment[]>(() => getComments(postId));
   const [commentText, setCommentText] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const username = String(user?.username || "").trim().replace(/^@+/, "");
 
   const post = useMemo(() => {
     if (!postId || typeof window === "undefined") return null;
@@ -238,19 +237,16 @@ export default function PostDetailPage() {
 
   function handleSubmitComment() {
     if (!post || !isSignedIn) return;
+    if (!username) return;
     const text = commentText.trim();
     if (!text) return;
 
-    const localProfile = readProfile();
     const authorName = String(
-      localProfile?.display_name ||
-      user?.fullName ||
       user?.firstName ||
       user?.username ||
       "Persona User"
     ).trim();
-    const handleBase = String(localProfile?.username || user?.username || "user").replace(/^@+/, "").trim();
-    const authorHandle = `@${handleBase || "user"}`;
+    const authorHandle = `@${username}`;
 
     const comment: PersonaComment = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
@@ -412,6 +408,19 @@ export default function PostDetailPage() {
 
               {isSignedIn ? (
                 <div className="mt-3">
+                  {!username ? (
+                    <div className="mb-3 rounded-lg border border-gray-200 p-3">
+                      <div className="text-sm text-gray-600">Create your Persona handle before commenting.</div>
+                      <div className="mt-2">
+                        <Link
+                          href="/u/you"
+                          className="inline-block px-3 py-2 rounded-lg bg-black text-white text-sm"
+                        >
+                          Go to Profile
+                        </Link>
+                      </div>
+                    </div>
+                  ) : null}
                   <textarea
                     value={commentText}
                     onChange={(e) => setCommentText(e.target.value)}
@@ -423,9 +432,9 @@ export default function PostDetailPage() {
                     <button
                       type="button"
                       onClick={handleSubmitComment}
-                      disabled={!commentText.trim()}
+                      disabled={!commentText.trim() || !username}
                       className={`px-3 py-2 rounded-lg text-sm ${
-                        commentText.trim()
+                        commentText.trim() && username
                           ? "bg-black text-white"
                           : "bg-gray-200 text-gray-500"
                       }`}

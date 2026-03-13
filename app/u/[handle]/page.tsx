@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
-import { readProfile } from "@/lib/profile";
 
 type CardItem = {
   id: string;
@@ -52,11 +51,15 @@ function readCardArray(key: string): CardItem[] {
 }
 
 export default function UserHandlePage() {
+  const router = useRouter();
   const { isSignedIn, user } = useUser();
   const params = useParams<{ handle: string }>();
   const handle = String(params?.handle || "").trim().replace(/^@+/, "");
-  const localProfile = readProfile();
-  const ownUsername = String(localProfile?.username || user?.username || "").trim().replace(/^@+/, "");
+  const ownUsername = String(user?.username || "").trim().replace(/^@+/, "");
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameError, setUsernameError] = useState("");
+  const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
   const isOwnProfile =
     handle.toLowerCase() === "you" ||
     (isSignedIn && ownUsername && handle.toLowerCase() === ownUsername.toLowerCase());
@@ -64,14 +67,30 @@ export default function UserHandlePage() {
     ? ownUsername || handle || "user"
     : handle || "user";
   const normalizedHandle = `@${resolvedHandle}`;
-  const profileName = String(
-    localProfile?.display_name ||
-    user?.fullName ||
-    user?.firstName ||
-    user?.username ||
-    "Persona User",
-  ).trim();
+  const profileName = String(user?.firstName || user?.username || "Persona User").trim();
   const profileIdentity = ownUsername ? `@${ownUsername}` : normalizedHandle;
+
+  async function saveUsername() {
+    const next = String(usernameInput || "").trim().toLowerCase();
+    if (!USERNAME_RE.test(next)) {
+      setUsernameError("Username must be 3–20 chars, lowercase letters/numbers/underscore.");
+      return;
+    }
+    if (!user) return;
+    try {
+      setIsSavingUsername(true);
+      setUsernameError("");
+      await user.update({ username: next });
+      await user.reload();
+      router.replace(`/u/${next}`);
+      router.refresh();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save username.";
+      setUsernameError(message);
+    } finally {
+      setIsSavingUsername(false);
+    }
+  }
 
   const posts = useMemo(() => {
     if (typeof window === "undefined") return [] as CardItem[];
@@ -129,46 +148,88 @@ export default function UserHandlePage() {
         ) : isOwnProfile ? (
           <div>
             <h1 className="text-2xl font-semibold mt-2">Profile</h1>
-            <div className="mt-4 rounded-lg border border-gray-200 p-4">
-              <div className="text-lg font-semibold">{profileIdentity}</div>
-              <div className="text-sm text-gray-600 mt-1">{profileName}</div>
-            </div>
-            <div className="mt-6 border-t border-gray-200 pt-4">
-              <div className="text-sm font-medium text-gray-500 mb-2">Preferences</div>
-              <Link
-                href="/taste"
-                className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
-              >
-                <span>Refine tastes</span>
-                <span className="text-gray-400">→</span>
-              </Link>
-            </div>
-            <div className="mt-4 space-y-2">
-              <Link
-                href="/collection"
-                className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
-              >
-                <span>My collections</span>
-                <span className="text-gray-400">→</span>
-              </Link>
-              <Link
-                href={`/u/${encodeURIComponent(resolvedHandle)}`}
-                className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
-              >
-                <span>My posts</span>
-                <span className="text-gray-400">→</span>
-              </Link>
-            </div>
-            <div className="mt-6">
-              <SignOutButton redirectUrl="/">
+            {ownUsername ? (
+              <>
+                <div className="mt-4 rounded-lg border border-gray-200 p-4">
+                  <div className="flex items-center gap-3">
+                    {user?.imageUrl ? (
+                      <img src={user.imageUrl} alt={profileName} className="h-12 w-12 rounded-full object-cover" />
+                    ) : (
+                      <div className="h-12 w-12 rounded-full bg-gray-200" />
+                    )}
+                    <div>
+                      <div className="text-lg font-semibold">{profileIdentity}</div>
+                      <div className="text-sm text-gray-600 mt-1">{profileName}</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-6 border-t border-gray-200 pt-4">
+                  <div className="text-sm font-medium text-gray-500 mb-2">Preferences</div>
+                  <Link
+                    href="/taste"
+                    className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
+                  >
+                    <span>Refine tastes</span>
+                    <span className="text-gray-400">→</span>
+                  </Link>
+                </div>
+                <div className="mt-4 space-y-2">
+                  <Link
+                    href="/collection"
+                    className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
+                  >
+                    <span>My collections</span>
+                    <span className="text-gray-400">→</span>
+                  </Link>
+                  <Link
+                    href={`/u/${encodeURIComponent(resolvedHandle)}`}
+                    className="flex items-center justify-between px-3 py-3 rounded-lg border border-gray-200 text-sm hover:bg-gray-50"
+                  >
+                    <span>My posts</span>
+                    <span className="text-gray-400">→</span>
+                  </Link>
+                </div>
+                <div className="mt-6">
+                  <SignOutButton redirectUrl="/">
+                    <button
+                      type="button"
+                      className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      Log out
+                    </button>
+                  </SignOutButton>
+                </div>
+              </>
+            ) : (
+              <div className="mt-6 rounded-xl border border-gray-200 p-4">
+                <div className="text-base font-medium">Create your Persona handle</div>
+                <div className="text-sm text-gray-600 mt-2">
+                  Choose a public username. This will appear as your @handle.
+                </div>
+                <div className="mt-3">
+                  <div className="flex items-center rounded-lg border border-gray-300 px-3 py-2">
+                    <span className="text-sm text-gray-500 mr-1">@</span>
+                    <input
+                      value={usernameInput}
+                      onChange={(e) => setUsernameInput(String(e.target.value || "").toLowerCase())}
+                      placeholder="username"
+                      className="w-full text-sm outline-none"
+                    />
+                  </div>
+                  {usernameError ? <div className="mt-2 text-xs text-red-600">{usernameError}</div> : null}
+                </div>
                 <button
                   type="button"
-                  className="px-3 py-2 rounded-lg border border-gray-300 text-sm text-gray-700 hover:bg-gray-50"
+                  onClick={saveUsername}
+                  disabled={isSavingUsername}
+                  className={`mt-4 px-3 py-2 rounded-lg text-sm ${
+                    isSavingUsername ? "bg-gray-200 text-gray-500" : "bg-black text-white"
+                  }`}
                 >
-                  Log out
+                  {isSavingUsername ? "Saving..." : "Save"}
                 </button>
-              </SignOutButton>
-            </div>
+              </div>
+            )}
           </div>
         ) : (
           <>

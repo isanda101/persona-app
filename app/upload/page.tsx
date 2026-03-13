@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
-import { readProfile } from "@/lib/profile";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -60,6 +59,7 @@ export default function UploadPage() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const username = String(user?.username || "").trim().replace(/^@+/, "");
 
   const hasTagCandidate = selectedTags.length > 0 || suggestedTags.length > 0;
   const hasReadyForm =
@@ -347,18 +347,16 @@ export default function UploadPage() {
     setError("");
 
     try {
-      const localProfile = readProfile();
       const creatorName = String(
-        localProfile?.display_name ||
-        user?.fullName ||
         user?.firstName ||
         user?.username ||
-        "You"
+        "Persona User"
       ).trim();
-      const creatorHandleBase = String(localProfile?.username || user?.username || "you")
-        .trim()
-        .replace(/^@+/, "");
-      const creatorHandle = `@${creatorHandleBase || "you"}`;
+      const creatorHandle = `@${username}`;
+
+      if (!username) {
+        throw new Error("Create your Persona handle before posting.");
+      }
 
       const finalTags = selectedTags.length
         ? selectedTags
@@ -446,6 +444,31 @@ export default function UploadPage() {
                 className="px-4 py-2 rounded-lg border border-gray-300 text-sm"
               >
                 Sign up
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!username) {
+    return (
+      <div className="min-h-screen bg-white text-black px-5 py-8">
+        <div className="max-w-md mx-auto">
+          <PersonaHeader showBack />
+          <h1 className="text-2xl font-semibold mt-2">Create Editorial Card</h1>
+          <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-5">
+            <div className="text-base font-medium">Create your Persona handle before posting.</div>
+            <div className="text-sm text-gray-600 mt-2">
+              Set your public @username in Profile, then come back to post.
+            </div>
+            <div className="mt-4">
+              <Link
+                href="/u/you"
+                className="inline-flex px-4 py-2 rounded-lg bg-black text-white text-sm"
+              >
+                Go to Profile
               </Link>
             </div>
           </div>
