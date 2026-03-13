@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 
 type CardItem = {
@@ -15,6 +16,7 @@ type CardItem = {
   creator_name?: string;
   creator_handle?: string;
   creator_avatar?: string;
+  creator_id?: string;
 };
 
 type ParsedLikes = {
@@ -52,6 +54,7 @@ function normalizeCard(value: unknown): CardItem | null {
   const creator_name = String(obj.creator_name || "").trim();
   const creator_handle = String(obj.creator_handle || "").trim();
   const creator_avatar = String(obj.creator_avatar || "").trim();
+  const creator_id = String(obj.creator_id || "").trim();
 
   return {
     id,
@@ -63,6 +66,7 @@ function normalizeCard(value: unknown): CardItem | null {
     creator_name: creator_name || undefined,
     creator_handle: creator_handle || undefined,
     creator_avatar: creator_avatar || undefined,
+    creator_id: creator_id || undefined,
   };
 }
 
@@ -175,6 +179,7 @@ type SectionProps = {
 
 function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: SectionProps) {
   const router = useRouter();
+  const { user } = useUser();
 
   function cleanHandle(handle?: string) {
     return String(handle || "").trim().replace(/^@+/, "");
@@ -183,6 +188,19 @@ function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: S
   function fallbackLetter(handle?: string, name?: string) {
     const source = cleanHandle(handle) || String(name || "").trim();
     return source ? source.charAt(0).toUpperCase() : "U";
+  }
+
+  function resolveAvatar(card: CardItem) {
+    const storedAvatar = String(card.creator_avatar || "").trim();
+    if (storedAvatar) return storedAvatar;
+    if (!user) return "";
+    const creatorId = String(card.creator_id || "").trim();
+    const creatorHandle = cleanHandle(card.creator_handle).toLowerCase();
+    const username = cleanHandle(user.username || "").toLowerCase();
+    const isMine =
+      (creatorId && creatorId === user.id) ||
+      (creatorHandle && username && creatorHandle === username);
+    return isMine ? String(user.imageUrl || "").trim() : "";
   }
 
   return (
@@ -206,9 +224,9 @@ function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: S
                     <div className="text-xs text-gray-500 mt-0.5 truncate">
                       {cleanHandle(card.creator_handle) ? (
                         <div className="flex items-center gap-1.5">
-                          {card.creator_avatar ? (
+                          {resolveAvatar(card) ? (
                             <img
-                              src={card.creator_avatar}
+                              src={resolveAvatar(card)}
                               alt={card.creator_name || card.creator_handle || "Creator avatar"}
                               className="w-6 h-6 rounded-full object-cover"
                             />

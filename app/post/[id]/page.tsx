@@ -24,6 +24,7 @@ type CardItem = {
   creator_name?: string;
   creator_handle?: string;
   creator_avatar?: string;
+  creator_id?: string;
   likes_count?: number;
   comments_count?: number;
   collections_count?: number;
@@ -59,6 +60,7 @@ function normalizeCard(value: unknown): CardItem | null {
   const creator_name = String(obj.creator_name || "").trim();
   const creator_handle = String(obj.creator_handle || "").trim();
   const creator_avatar = String(obj.creator_avatar || "").trim();
+  const creator_id = String(obj.creator_id || "").trim();
   const likes_count = Math.max(0, Number(obj.likes_count) || 0);
   const comments_count = Math.max(0, Number(obj.comments_count) || 0);
   const collections_count = Math.max(0, Number(obj.collections_count) || 0);
@@ -74,6 +76,7 @@ function normalizeCard(value: unknown): CardItem | null {
     creator_name: creator_name || undefined,
     creator_handle: creator_handle || undefined,
     creator_avatar: creator_avatar || undefined,
+    creator_id: creator_id || undefined,
     likes_count,
     comments_count,
     collections_count,
@@ -265,12 +268,14 @@ export default function PostDetailPage() {
     ).trim();
     const authorHandle = `@${username}`;
     const authorAvatar = String(user?.imageUrl || "").trim();
+    const authorId = String(user?.id || "").trim();
 
     const comment: PersonaComment = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       author_name: authorName,
       author_handle: authorHandle,
       author_avatar: authorAvatar || undefined,
+      author_id: authorId || undefined,
       text,
       created_at: Date.now(),
     };
@@ -309,6 +314,14 @@ export default function PostDetailPage() {
   const isLiked = Boolean(likes[post.id]);
   const isCollected = savedIds.includes(post.id);
   const creatorHandle = cleanHandle(post.creator_handle);
+  const isCurrentUserCreator = Boolean(
+    user &&
+      ((post.creator_id && post.creator_id === user.id) ||
+        (creatorHandle && creatorHandle.toLowerCase() === String(user.username || "").toLowerCase())),
+  );
+  const creatorAvatarSrc = String(
+    post.creator_avatar || (isCurrentUserCreator ? user?.imageUrl || "" : ""),
+  ).trim();
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -327,9 +340,9 @@ export default function PostDetailPage() {
             <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
               {creatorHandle ? (
                 <>
-                  {post.creator_avatar ? (
+                  {creatorAvatarSrc ? (
                     <img
-                      src={post.creator_avatar}
+                      src={creatorAvatarSrc}
                       alt={post.creator_name || formatHandle(post.creator_handle) || "Creator avatar"}
                       className="w-8 h-8 rounded-full object-cover"
                     />
@@ -504,10 +517,22 @@ export default function PostDetailPage() {
               <div className="mt-4 space-y-3">
                 {comments.length ? comments.map((comment) => (
                   <div key={comment.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
+                    {(() => {
+                      const commentHandle = cleanHandle(comment.author_handle);
+                      const isOwnComment = Boolean(
+                        user &&
+                          ((comment.author_id && comment.author_id === user.id) ||
+                            (commentHandle &&
+                              commentHandle.toLowerCase() === String(user.username || "").toLowerCase())),
+                      );
+                      const commentAvatar = String(
+                        comment.author_avatar || (isOwnComment ? user?.imageUrl || "" : ""),
+                      ).trim();
+                      return (
                     <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {comment.author_avatar ? (
+                      {commentAvatar ? (
                         <img
-                          src={comment.author_avatar}
+                          src={commentAvatar}
                           alt={comment.author_name || comment.author_handle || "Avatar"}
                           className="w-7 h-7 rounded-full object-cover"
                         />
@@ -530,6 +555,8 @@ export default function PostDetailPage() {
                         {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
                       </span>
                     </div>
+                      );
+                    })()}
                     <div className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{comment.text}</div>
                   </div>
                 )) : (

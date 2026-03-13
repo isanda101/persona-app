@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import {
   ensureEngagement,
   getEngagement,
@@ -26,6 +26,7 @@ type Card = {
   creator_name?: string;
   creator_handle?: string;
   creator_avatar?: string;
+  creator_id?: string;
   likes_count?: number;
   comments_count?: number;
   collections_count?: number;
@@ -111,6 +112,7 @@ function fallbackLetter(handle?: string, name?: string) {
 export default function PersonaFeed() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
+  const { user } = useUser();
   const [cards, setCards] = useState<Card[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [index, setIndex] = useState(0);
@@ -219,6 +221,60 @@ export default function PersonaFeed() {
   useEffect(() => {
     cardsRef.current = cards;
   }, [cards]);
+
+  function isOwnedByCurrentUser(card?: Card) {
+    if (!card || !user) return false;
+    const creatorId = String(card.creator_id || "").trim();
+    const creatorHandle = cleanHandle(card.creator_handle).toLowerCase();
+    const username = cleanHandle(user.username || "").toLowerCase();
+    if (creatorId && creatorId === user.id) return true;
+    if (creatorHandle && username && creatorHandle === username) return true;
+    return false;
+  }
+
+  useEffect(() => {
+    if (!isSignedIn || !user) return;
+    const avatar = String(user.imageUrl || "").trim();
+    if (!avatar) return;
+    const username = cleanHandle(user.username || "").toLowerCase();
+    const userId = String(user.id || "").trim();
+    if (!username && !userId) return;
+
+    try {
+      const uploadsRaw = localStorage.getItem("persona:uploads") || "[]";
+      const uploadsParsed = JSON.parse(uploadsRaw);
+      if (!Array.isArray(uploadsParsed)) return;
+
+      let changed = false;
+      const repaired = uploadsParsed.map((entry: unknown) => {
+        if (!entry || typeof entry !== "object") return entry;
+        const obj = entry as Record<string, unknown>;
+        const creatorId = String(obj.creator_id || "").trim();
+        const creatorHandle = cleanHandle(String(obj.creator_handle || "")).toLowerCase();
+        const isMine =
+          (creatorId && userId && creatorId === userId) ||
+          (creatorHandle && username && creatorHandle === username);
+        if (!isMine) return entry;
+
+        const next: Record<string, unknown> = { ...obj };
+        if (!String(obj.creator_avatar || "").trim()) {
+          next.creator_avatar = avatar;
+          changed = true;
+        }
+        if (!creatorId && userId) {
+          next.creator_id = userId;
+          changed = true;
+        }
+        return next;
+      });
+
+      if (changed) {
+        localStorage.setItem("persona:uploads", JSON.stringify(repaired));
+      }
+    } catch {
+      // no-op
+    }
+  }, [isSignedIn, user]);
 
   function topicOf(card: Card) {
     const fromTag = card.tags?.[0]?.trim();
@@ -809,9 +865,9 @@ export default function PersonaFeed() {
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
                     {active.source === "community" ? (
                       <div className="flex items-center gap-2">
-                        {active.creator_avatar ? (
+                        {active.creator_avatar || (isOwnedByCurrentUser(active) ? String(user?.imageUrl || "").trim() : "") ? (
                           <img
-                            src={active.creator_avatar}
+                            src={active.creator_avatar || String(user?.imageUrl || "").trim()}
                             alt={active.creator_name || active.creator_handle || "Creator avatar"}
                             className="w-7 h-7 rounded-full object-cover"
                           />

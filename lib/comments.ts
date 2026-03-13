@@ -3,6 +3,7 @@ export type PersonaComment = {
   author_name: string;
   author_handle: string;
   author_avatar?: string;
+  author_id?: string;
   text: string;
   created_at: number;
 };
@@ -29,6 +30,7 @@ export function readComments(): CommentsMap {
             author_name: String(obj.author_name || "").trim(),
             author_handle: String(obj.author_handle || "").trim(),
             author_avatar: String(obj.author_avatar || "").trim() || undefined,
+            author_id: String(obj.author_id || "").trim() || undefined,
             text: String(obj.text || "").trim(),
             created_at: Number(obj.created_at) || 0,
           };

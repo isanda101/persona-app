@@ -354,6 +354,7 @@ export default function UploadPage() {
       ).trim();
       const creatorHandle = `@${username}`;
       const creatorAvatar = String(user?.imageUrl || "").trim();
+      const creatorId = String(user?.id || "").trim();
 
       if (!username) {
         throw new Error("Create your Persona handle before posting.");
@@ -389,6 +390,7 @@ export default function UploadPage() {
             creator_name: creatorName,
             creator_handle: creatorHandle,
             creator_avatar: creatorAvatar,
+            creator_id: creatorId,
           },
         }),
       });
@@ -409,6 +411,7 @@ export default function UploadPage() {
         creator_name: String(cardData.cards[0]?.creator_name || creatorName),
         creator_handle: String(cardData.cards[0]?.creator_handle || creatorHandle),
         creator_avatar: String(cardData.cards[0]?.creator_avatar || creatorAvatar || ""),
+        creator_id: String(cardData.cards[0]?.creator_id || creatorId || ""),
       };
       const existingRaw = localStorage.getItem("persona:uploads") || "[]";
       const parsedExisting = JSON.parse(existingRaw);
