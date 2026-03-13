@@ -1081,7 +1081,7 @@ export default function PersonaFeed() {
                           router.push(`/post/${encodeURIComponent(active.id)}`);
                         }}
                         className="hover:text-black active:scale-95 transition"
-                        aria-label="Chat"
+                        aria-label="Comment"
                       >
                         <svg
                           width="18"
@@ -1116,6 +1116,27 @@ export default function PersonaFeed() {
                           <path d="M12 2v14" />
                         </svg>
                       </button>
+                      <button
+                        onClick={() => saveCard(active)}
+                        disabled={isUpdating}
+                        className={`hover:text-black active:scale-95 transition ${
+                          savedIds.includes(active.id) ? "text-black" : ""
+                        }`}
+                        aria-label={savedIds.includes(active.id) ? "Remove from collection" : "Save to collection"}
+                      >
+                        <svg
+                          width="18"
+                          height="18"
+                          viewBox="0 0 24 24"
+                          fill={savedIds.includes(active.id) ? "currentColor" : "none"}
+                          stroke="currentColor"
+                          strokeWidth="1.8"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
 
@@ -1128,26 +1149,6 @@ export default function PersonaFeed() {
                     </div>
                   ) : null}
 
-                  <div className="mt-4 flex gap-2">
-                    <button
-                      onClick={() => saveCard(active)}
-                      disabled={isUpdating}
-                      className={`px-3 py-2 rounded text-sm transition ${
-                        savedIds.includes(active.id)
-                          ? "bg-gray-200 text-gray-700"
-                          : "bg-black text-white"
-                      }`}
-                    >
-                      {savedIds.includes(active.id) ? "✓ Collected" : "+ Collection"}
-                    </button>
-
-                    <button
-                      onClick={() => goTo(index + 1)}
-                      className="px-3 py-2 rounded bg-gray-100 text-sm"
-                    >
-                      Next
-                    </button>
-                  </div>
                   {actionToast ? (
                     <div className="mt-2 text-xs text-gray-500">{actionToast}</div>
                   ) : null}
