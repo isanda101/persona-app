@@ -964,6 +964,20 @@ export default function PersonaFeed() {
                   ) : null}
 
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
+                  <div className="mt-1" onPointerDown={(e) => e.stopPropagation()}>
+                    {!expanded ? (
+                      <button onClick={() => setExpanded(true)} className="text-sm underline">
+                        Read more
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setExpanded(false)}
+                        className="text-sm underline text-gray-700"
+                      >
+                        Show less
+                      </button>
+                    )}
+                  </div>
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
                     {active.source === "community" ? (
                       <div className="flex items-center gap-2">
@@ -1122,21 +1136,6 @@ export default function PersonaFeed() {
                       </svg>
                       <span className="text-xs text-gray-600">{activeEngagement.collections_count}</span>
                     </button>
-                  </div>
-
-                  <div className="mt-2">
-                    {!expanded ? (
-                      <button onClick={() => setExpanded(true)} className="text-sm underline">
-                        Read more
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setExpanded(false)}
-                        className="text-sm underline text-gray-700"
-                      >
-                        Show less
-                      </button>
-                    )}
                   </div>
 
                   {expanded ? (
