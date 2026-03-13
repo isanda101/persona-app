@@ -978,6 +978,14 @@ export default function PersonaFeed() {
                       </button>
                     )}
                   </div>
+                  {expanded ? (
+                    <div
+                      onPointerDown={(e) => e.stopPropagation()}
+                      className="mt-2 text-sm text-gray-700 leading-relaxed"
+                    >
+                      {active.caption_long}
+                    </div>
+                  ) : null}
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
                     {active.source === "community" ? (
                       <div className="flex items-center gap-2">
@@ -1155,15 +1163,6 @@ export default function PersonaFeed() {
                       <span className="text-xs text-gray-600">{activeEngagement.collections_count}</span>
                     </button>
                   </div>
-
-                  {expanded ? (
-                    <div
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className="mt-2 text-sm text-gray-700 leading-relaxed"
-                    >
-                      {active.caption_long}
-                    </div>
-                  ) : null}
 
                   {actionToast ? (
                     <div className="mt-2 text-xs text-gray-500">{actionToast}</div>
