@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
   isTagFollowed,
@@ -123,6 +124,7 @@ function searchableText(card: CardItem): string {
 }
 
 export default function SearchPage() {
+  const { isSignedIn } = useUser();
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<SearchTab>("top");
   const [followedTags, setFollowedTags] = useState<string[]>(() => readFollowedTags());
@@ -287,7 +289,7 @@ export default function SearchPage() {
                 }
 
                 if (item.kind === "tag") {
-                  const followed = isTagFollowed(item.tag, followedTags);
+                  const followed = Boolean(isSignedIn) && isTagFollowed(item.tag, followedTags);
                   return (
                     <div key={`top-tag-${item.tag}-${idx}`} className="inline-flex items-center gap-2 mr-2">
                       <Link
@@ -296,20 +298,31 @@ export default function SearchPage() {
                       >
                         #{item.tag}
                       </Link>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const result = toggleFollowedTag(item.tag);
-                          setFollowedTags(result.tags);
-                        }}
-                        className={`text-xs px-2 py-1 rounded-full border ${
-                          followed
-                            ? "bg-black text-white border-black"
-                            : "bg-white text-gray-600 border-gray-300"
-                        }`}
-                      >
-                        {followed ? "Following" : "Follow"}
-                      </button>
+                      {isSignedIn ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const result = toggleFollowedTag(item.tag);
+                            setFollowedTags(result.tags);
+                          }}
+                          className={`text-xs px-2 py-1 rounded-full border ${
+                            followed
+                              ? "bg-black text-white border-black"
+                              : "bg-white text-gray-600 border-gray-300"
+                          }`}
+                        >
+                          {followed ? "Following" : "Follow"}
+                        </button>
+                      ) : (
+                        <SignInButton mode="modal">
+                          <button
+                            type="button"
+                            className="text-xs px-2 py-1 rounded-full border bg-white text-gray-600 border-gray-300"
+                          >
+                            Follow
+                          </button>
+                        </SignInButton>
+                      )}
                     </div>
                   );
                 }
@@ -365,20 +378,31 @@ export default function SearchPage() {
                   >
                     #{tag}
                   </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const result = toggleFollowedTag(tag);
-                      setFollowedTags(result.tags);
-                    }}
-                    className={`text-xs px-2.5 py-1 rounded-full border ${
-                      isTagFollowed(tag, followedTags)
-                        ? "bg-black text-white border-black"
-                        : "bg-white text-gray-600 border-gray-300"
-                    }`}
-                  >
-                    {isTagFollowed(tag, followedTags) ? "Following" : "Follow"}
-                  </button>
+                  {isSignedIn ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const result = toggleFollowedTag(tag);
+                        setFollowedTags(result.tags);
+                      }}
+                      className={`text-xs px-2.5 py-1 rounded-full border ${
+                        isTagFollowed(tag, followedTags)
+                          ? "bg-black text-white border-black"
+                          : "bg-white text-gray-600 border-gray-300"
+                      }`}
+                    >
+                      {isTagFollowed(tag, followedTags) ? "Following" : "Follow"}
+                    </button>
+                  ) : (
+                    <SignInButton mode="modal">
+                      <button
+                        type="button"
+                        className="text-xs px-2.5 py-1 rounded-full border bg-white text-gray-600 border-gray-300"
+                      >
+                        Follow
+                      </button>
+                    </SignInButton>
+                  )}
                 </div>
               ))}
             </div>

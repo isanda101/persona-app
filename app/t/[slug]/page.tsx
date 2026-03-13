@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
+import { SignInButton, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import { isTagFollowed, readFollowedTags, toggleFollowedTag } from "@/lib/followedTags";
 import { getRelatedTagsFromCards, normalizeTag, slugifyTag, unslugifyTag } from "@/lib/tags";
@@ -76,6 +77,7 @@ function creatorLine(card: CardItem): string {
 }
 
 export default function TagPage() {
+  const { isSignedIn } = useUser();
   const params = useParams<{ slug: string }>();
   const slug = String(params?.slug || "").trim();
   const displayTag = unslugifyTag(slug);
@@ -92,7 +94,7 @@ export default function TagPage() {
   const relatedTags = getRelatedTagsFromCards(cards, displayTag, 6);
   const trailNodes = [displayTag, ...relatedTags.slice(0, 3)].filter(Boolean);
 
-  const following = isTagFollowed(displayTag, followedTags);
+  const following = Boolean(isSignedIn) && isTagFollowed(displayTag, followedTags);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -105,20 +107,31 @@ export default function TagPage() {
               Posts tagged with {displayTag || "this tag"}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              const result = toggleFollowedTag(displayTag);
-              setFollowedTags(result.tags);
-            }}
-            className={`px-3 py-1.5 rounded-full text-sm border ${
-              following
-                ? "bg-black text-white border-black"
-                : "bg-white text-gray-700 border-gray-300"
-            }`}
-          >
-            {following ? "Following" : "Follow"}
-          </button>
+          {isSignedIn ? (
+            <button
+              type="button"
+              onClick={() => {
+                const result = toggleFollowedTag(displayTag);
+                setFollowedTags(result.tags);
+              }}
+              className={`px-3 py-1.5 rounded-full text-sm border ${
+                following
+                  ? "bg-black text-white border-black"
+                  : "bg-white text-gray-700 border-gray-300"
+              }`}
+            >
+              {following ? "Following" : "Follow"}
+            </button>
+          ) : (
+            <SignInButton mode="modal">
+              <button
+                type="button"
+                className="px-3 py-1.5 rounded-full text-sm border bg-white text-gray-700 border-gray-300"
+              >
+                Follow
+              </button>
+            </SignInButton>
+          )}
         </div>
 
         {relatedTags.length ? (
