@@ -1034,110 +1034,109 @@ export default function PersonaFeed() {
                     </div>
                   ) : null}
 
-                  <div className="mt-2 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      {!expanded ? (
-                        <button onClick={() => setExpanded(true)} className="text-sm underline">
-                          Read more
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setExpanded(false)}
-                          className="text-sm underline text-gray-700"
-                        >
-                          Show less
-                        </button>
-                      )}
-                      <div className="text-xs text-gray-500 flex items-center gap-2">
-                        <span>♥ {activeEngagement.likes_count}</span>
-                        <span>💬 {activeEngagement.comments_count}</span>
-                        <span>🔖 {activeEngagement.collections_count}</span>
-                      </div>
-                    </div>
-                    <div
-                      onPointerDown={(e) => e.stopPropagation()}
-                      className="flex items-center gap-3 text-gray-600"
+                  <div
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="mt-3 flex items-center gap-4 text-gray-600"
+                  >
+                    <button
+                      onClick={() => toggleLike(active)}
+                      className={`flex items-center gap-1 hover:text-black active:scale-95 transition ${
+                        isLiked ? "text-black" : ""
+                      }`}
+                      aria-label="Like"
                     >
-                      <button
-                        onClick={() => toggleLike(active)}
-                        className="hover:text-black active:scale-95 transition"
-                        aria-label="Like"
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill={isLiked ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill={isLiked ? "currentColor" : "none"}
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => {
-                          router.push(`/post/${encodeURIComponent(active.id)}`);
-                        }}
-                        className="hover:text-black active:scale-95 transition"
-                        aria-label="Comment"
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" />
+                      </svg>
+                      <span className="text-xs text-gray-600">{activeEngagement.likes_count}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        router.push(`/post/${encodeURIComponent(active.id)}`);
+                      }}
+                      className="flex items-center gap-1 hover:text-black active:scale-95 transition"
+                      aria-label="Comment"
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={handleShare}
-                        className="hover:text-black active:scale-95 transition"
-                        aria-label="Share"
+                        <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+                      </svg>
+                      <span className="text-xs text-gray-600">{activeEngagement.comments_count}</span>
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className="hover:text-black active:scale-95 transition"
+                      aria-label="Share"
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
-                          <path d="M16 6l-4-4-4 4" />
-                          <path d="M12 2v14" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => saveCard(active)}
-                        disabled={isUpdating}
-                        className={`hover:text-black active:scale-95 transition ${
-                          savedIds.includes(active.id) ? "text-black" : ""
-                        }`}
-                        aria-label={savedIds.includes(active.id) ? "Remove from collection" : "Save to collection"}
+                        <path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                        <path d="M16 6l-4-4-4 4" />
+                        <path d="M12 2v14" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => saveCard(active)}
+                      disabled={isUpdating}
+                      className={`flex items-center gap-1 hover:text-black active:scale-95 transition ${
+                        savedIds.includes(active.id) ? "text-black" : ""
+                      }`}
+                      aria-label={savedIds.includes(active.id) ? "Remove from collection" : "Save to collection"}
+                    >
+                      <svg
+                        width="18"
+                        height="18"
+                        viewBox="0 0 24 24"
+                        fill={savedIds.includes(active.id) ? "currentColor" : "none"}
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
                       >
-                        <svg
-                          width="18"
-                          height="18"
-                          viewBox="0 0 24 24"
-                          fill={savedIds.includes(active.id) ? "currentColor" : "none"}
-                          stroke="currentColor"
-                          strokeWidth="1.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
-                        </svg>
+                        <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
+                      </svg>
+                      <span className="text-xs text-gray-600">{activeEngagement.collections_count}</span>
+                    </button>
+                  </div>
+
+                  <div className="mt-2">
+                    {!expanded ? (
+                      <button onClick={() => setExpanded(true)} className="text-sm underline">
+                        Read more
                       </button>
-                    </div>
+                    ) : (
+                      <button
+                        onClick={() => setExpanded(false)}
+                        className="text-sm underline text-gray-700"
+                      >
+                        Show less
+                      </button>
+                    )}
                   </div>
 
                   {expanded ? (
