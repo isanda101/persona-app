@@ -12,7 +12,7 @@ import {
   type EngagementMap,
 } from "@/lib/engagement";
 import { addComment, getComments, type PersonaComment } from "@/lib/comments";
-import { sanitizeContentTags, slugifyTag } from "@/lib/tags";
+import { prioritizeUploadTags, sanitizeContentTags, slugifyTag } from "@/lib/tags";
 
 type CardItem = {
   id: string;
@@ -326,7 +326,7 @@ export default function PostDetailPage() {
   const creatorAvatarSrc = String(
     post.creator_avatar || (isCurrentUserCreator ? user?.imageUrl || "" : ""),
   ).trim();
-  const visibleTags = sanitizeContentTags(post.tags, 12);
+  const visibleTags = prioritizeUploadTags(sanitizeContentTags(post.tags, 12), 12);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">

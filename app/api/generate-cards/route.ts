@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { prioritizeUploadTags, sanitizeContentTags } from "@/lib/tags";
+import { buildIdentityFirstTags } from "@/lib/tags";
 
 type SavedSignal = { caption_short?: string; tags?: string[] };
 
@@ -15,6 +15,10 @@ type Body = {
     tags?: string[];
     image_url?: string | null;
     editorial?: string;
+    brand?: string;
+    model?: string;
+    object_type?: string;
+    style?: string;
     creator_name?: string;
     creator_handle?: string;
     creator_avatar?: string;
@@ -299,8 +303,28 @@ export async function POST(req: Request) {
 
   // Upload mode: return one editorial card using upload note/tags (+ image_url).
   if (body.upload && typeof body.upload === "object") {
-    const { note, tags, image_url, editorial, creator_name, creator_handle, creator_avatar, creator_id } = body.upload;
-    const safeTags = prioritizeUploadTags(safeArrayStrings(tags, 12), 12);
+    const {
+      note,
+      tags,
+      image_url,
+      editorial,
+      brand,
+      model,
+      object_type,
+      style,
+      creator_name,
+      creator_handle,
+      creator_avatar,
+      creator_id,
+    } = body.upload;
+    const safeTags = buildIdentityFirstTags({
+      brand: String(brand || ""),
+      model: String(model || ""),
+      objectType: String(object_type || ""),
+      style: String(style || ""),
+      tags: safeArrayStrings(tags, 24),
+      max: 6,
+    });
     const safeNote = typeof note === "string" ? note.trim() : "";
     const safeEditorial = typeof editorial === "string" ? editorial.trim() : "";
     const safeCreatorName = typeof creator_name === "string" && creator_name.trim()
@@ -359,7 +383,7 @@ Requirements:
           image_url: typeof image_url === "string" ? image_url : "",
           caption_short,
           caption_long,
-          tags: sanitizeContentTags(safeTags, 12),
+          tags: safeTags,
           attribution: "Uploaded by community",
           source: "community",
           creator_name: safeCreatorName,

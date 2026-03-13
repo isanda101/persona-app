@@ -69,6 +69,18 @@ const STYLE_HINTS = [
   "avant garde",
 ];
 
+const WEAK_GENERIC_HINTS = [
+  "style",
+  "culture",
+  "object",
+  "aesthetic",
+  "reference",
+  "design",
+  "fashion",
+  "look",
+  "trend",
+];
+
 export function isSourceLabelTag(tag: string): boolean {
   const normalized = normalizeTag(tag);
   return SOURCE_LABEL_TAGS.has(normalized);
@@ -95,6 +107,7 @@ function includesHint(value: string, hints: string[]): boolean {
 function tagPriority(tag: string): number {
   const value = normalizeTag(tag);
   if (!value) return 6;
+  if (includesHint(value, WEAK_GENERIC_HINTS)) return 9;
   if (includesHint(value, BRAND_HINTS)) return 0;
   if (includesHint(value, OBJECT_HINTS)) return 2;
   if (includesHint(value, STYLE_HINTS)) return 3;
@@ -110,6 +123,53 @@ export function prioritizeUploadTags(tags: string[], max = 12): string[] {
     .sort((a, b) => a.priority - b.priority || a.index - b.index)
     .slice(0, max)
     .map((item) => item.tag);
+}
+
+type BuildIdentityFirstTagsInput = {
+  brand?: string;
+  model?: string;
+  objectType?: string;
+  style?: string;
+  tags?: string[];
+  max?: number;
+};
+
+function pushUniqueTag(target: string[], value: string) {
+  const normalized = normalizeTag(value);
+  if (!normalized) return;
+  if (target.some((item) => normalizeTag(item) === normalized)) return;
+  target.push(value);
+}
+
+export function buildIdentityFirstTags(input: BuildIdentityFirstTagsInput): string[] {
+  const max = Math.max(1, Math.min(Number(input.max || 6), 12));
+  const identity = sanitizeContentTags(
+    [
+      String(input.brand || "").trim(),
+      String(input.model || "").trim(),
+      String(input.objectType || "").trim(),
+    ],
+    6,
+  );
+  const remainder = prioritizeUploadTags(
+    sanitizeContentTags(
+      [
+        String(input.style || "").trim(),
+        ...(Array.isArray(input.tags) ? input.tags : []),
+      ],
+      24,
+    ),
+    24,
+  );
+
+  const ordered: string[] = [];
+  for (const tag of identity) pushUniqueTag(ordered, tag);
+  for (const tag of remainder) {
+    pushUniqueTag(ordered, tag);
+    if (ordered.length >= max) break;
+  }
+
+  return ordered.slice(0, max);
 }
 
 export function slugifyTag(tag: string): string {

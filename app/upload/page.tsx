@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
-import { prioritizeUploadTags, sanitizeContentTags } from "@/lib/tags";
+import { buildIdentityFirstTags, sanitizeContentTags } from "@/lib/tags";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -265,10 +265,14 @@ export default function UploadPage() {
       } else if (!tagsForEditorial.length && suggestedTags.length) {
         tagsForEditorial = mergeCaseInsensitive(tagsForEditorial, suggestedTags);
       }
-      const normalizedEditorialTags = prioritizeUploadTags(
-        sanitizeContentTags(tagsForEditorial, 12),
-        12,
-      );
+      const normalizedEditorialTags = buildIdentityFirstTags({
+        brand: detectedBrand,
+        model: detectedModel,
+        objectType: detectedObjectType,
+        style: detectedStyle,
+        tags: sanitizeContentTags(tagsForEditorial, 24),
+        max: 6,
+      });
 
       const res = await fetch("/api/generate-cards", {
         method: "POST",
@@ -278,6 +282,10 @@ export default function UploadPage() {
             note,
             tags: normalizedEditorialTags,
             image_url: uploadedImageUrl,
+            brand: detectedBrand,
+            model: detectedModel,
+            object_type: detectedObjectType,
+            style: detectedStyle,
           },
         }),
       });
@@ -370,7 +378,14 @@ export default function UploadPage() {
         : suggestedTags.length
           ? suggestedTags
           : [];
-      const finalTags = prioritizeUploadTags(sanitizeContentTags(finalTagsRaw, 12), 12);
+      const finalTags = buildIdentityFirstTags({
+        brand: detectedBrand,
+        model: detectedModel,
+        objectType: detectedObjectType,
+        style: detectedStyle,
+        tags: sanitizeContentTags(finalTagsRaw, 24),
+        max: 6,
+      });
 
       if (!finalTags.length) {
         throw new Error("Add at least one tag to post on Persona.");
@@ -393,6 +408,10 @@ export default function UploadPage() {
             tags: finalTags,
             image_url: uploadedImageUrl,
             editorial: finalEditorial,
+            brand: detectedBrand,
+            model: detectedModel,
+            object_type: detectedObjectType,
+            style: detectedStyle,
             creator_name: creatorName,
             creator_handle: creatorHandle,
             creator_avatar: creatorAvatar,

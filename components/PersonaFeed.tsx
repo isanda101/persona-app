@@ -19,6 +19,7 @@ import {
 import {
   getRelatedTagsFromCards,
   normalizeTag as normalizeFollowedTag,
+  prioritizeUploadTags,
   sanitizeContentTags,
   slugifyTag,
 } from "@/lib/tags";
@@ -210,7 +211,7 @@ export default function PersonaFeed() {
     [active, engagement],
   );
   const displayTags = useMemo(
-    () => sanitizeContentTags(Array.isArray(active?.tags) ? active.tags : [], 8),
+    () => prioritizeUploadTags(sanitizeContentTags(Array.isArray(active?.tags) ? active.tags : [], 8), 8),
     [active],
   );
   const exploreNextTags = useMemo(() => {
