@@ -120,6 +120,19 @@ function fallbackLetter(handle?: string, name?: string) {
   return source ? source.charAt(0).toUpperCase() : "U";
 }
 
+function getFeedPreview(text: string, max = 260) {
+  const clean = String(text || "").trim();
+  if (clean.length <= max) return clean;
+  const sliced = clean.slice(0, max);
+  const lastSpace = sliced.lastIndexOf(" ");
+  const truncated = lastSpace > 120 ? sliced.slice(0, lastSpace) : sliced;
+  return `${truncated.trim()}...`;
+}
+
+function isFeedPreviewTruncated(text: string, max = 260) {
+  return String(text || "").trim().length > max;
+}
+
 type CoOccurrenceCard = {
   id: string;
   tags: string[];
@@ -251,6 +264,14 @@ export default function PersonaFeed() {
 
     return getRelatedTagsFromCards(matching, primaryTag, 2);
   }, [active, cards, displayTags]);
+  const feedPreviewText = useMemo(
+    () => getFeedPreview(String(active?.caption_long || ""), 260),
+    [active],
+  );
+  const feedPreviewIsTruncated = useMemo(
+    () => isFeedPreviewTruncated(String(active?.caption_long || ""), 260),
+    [active],
+  );
 
   useEffect(() => {
     const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
@@ -983,7 +1004,18 @@ export default function PersonaFeed() {
                       onPointerDown={(e) => e.stopPropagation()}
                       className="mt-2 text-sm text-gray-700 leading-relaxed"
                     >
-                      {active.caption_long}
+                      {feedPreviewText}
+                    </div>
+                  ) : null}
+                  {expanded && feedPreviewIsTruncated ? (
+                    <div className="mt-1" onPointerDown={(e) => e.stopPropagation()}>
+                      <Link
+                        href={`/post/${encodeURIComponent(active.id)}`}
+                        className="text-xs underline text-gray-600"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Open post
+                      </Link>
                     </div>
                   ) : null}
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
