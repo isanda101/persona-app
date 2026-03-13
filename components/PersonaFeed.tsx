@@ -19,6 +19,7 @@ import {
 import {
   getRelatedTagsFromCards,
   normalizeTag as normalizeFollowedTag,
+  sanitizeContentTags,
   slugifyTag,
 } from "@/lib/tags";
 
@@ -128,9 +129,9 @@ function normalizeCoOccurrenceCard(value: unknown): CoOccurrenceCard | null {
   const obj = value as Record<string, unknown>;
   const id = String(obj.id || "").trim();
   const topic = String(obj.topic || "").trim();
-  const rawTags = Array.isArray(obj.tags)
+  const rawTags = sanitizeContentTags(Array.isArray(obj.tags)
     ? obj.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
-    : [];
+    : []);
   const tags = rawTags.length ? rawTags : topic ? [topic] : [];
   if (!tags.length) return null;
   return {
@@ -208,11 +209,15 @@ export default function PersonaFeed() {
     () => (active?.id ? getEngagement(active.id, engagement) : getEngagement("")),
     [active, engagement],
   );
+  const displayTags = useMemo(
+    () => sanitizeContentTags(Array.isArray(active?.tags) ? active.tags : [], 8),
+    [active],
+  );
   const exploreNextTags = useMemo(() => {
     if (!active) return [];
 
     const primaryTag =
-      (Array.isArray(active.tags) ? active.tags.map((tag) => String(tag || "").trim()).find(Boolean) : "") ||
+      (displayTags.find(Boolean) || "") ||
       String(active.topic || "").trim();
     const normalizedPrimary = normalizeFollowedTag(primaryTag);
     if (!normalizedPrimary) return [];
@@ -244,7 +249,7 @@ export default function PersonaFeed() {
     if (!matching.length) return [];
 
     return getRelatedTagsFromCards(matching, primaryTag, 2);
-  }, [active, cards]);
+  }, [active, cards, displayTags]);
 
   useEffect(() => {
     const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
@@ -931,32 +936,29 @@ export default function PersonaFeed() {
                 </div>
 
                 <div className="p-4 overflow-visible">
-                  <div className="flex flex-wrap gap-1.5">
-                    {active.tags.slice(0, 5).map((tag) => {
-                      const followed = isTagFollowed(tag, followedTags);
-                      return (
-                        <button
-                          key={`${active.id}-${tag}`}
-                          type="button"
-                          onPointerDown={(e) => e.stopPropagation()}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/t/${encodeURIComponent(slugifyTag(tag))}`);
-                          }}
-                          className={`px-2 py-1 rounded-full text-[11px] border transition ${
-                            followed
-                              ? "bg-black text-white border-black"
-                              : "bg-white text-gray-600 border-gray-300"
-                          }`}
-                        >
-                          {tag}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {active.source === "community" ? (
-                    <div className="mt-1 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
-                      Community
+                  {displayTags.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {displayTags.slice(0, 5).map((tag) => {
+                        const followed = isTagFollowed(tag, followedTags);
+                        return (
+                          <button
+                            key={`${active.id}-${tag}`}
+                            type="button"
+                            onPointerDown={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              router.push(`/t/${encodeURIComponent(slugifyTag(tag))}`);
+                            }}
+                            className={`px-2 py-1 rounded-full text-[11px] border transition ${
+                              followed
+                                ? "bg-black text-white border-black"
+                                : "bg-white text-gray-600 border-gray-300"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        );
+                      })}
                     </div>
                   ) : null}
 

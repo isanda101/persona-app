@@ -2,6 +2,116 @@ export function normalizeTag(tag: string): string {
   return String(tag || "").trim().toLowerCase();
 }
 
+const SOURCE_LABEL_TAGS = new Set([
+  "community",
+  "editorial",
+  "persona community",
+  "persona editorial",
+]);
+
+const BRAND_HINTS = [
+  "rolex",
+  "nike",
+  "gucci",
+  "louis vuitton",
+  "prada",
+  "tommy hilfiger",
+  "ralph lauren",
+  "supreme",
+  "bape",
+  "stussy",
+  "off-white",
+  "porsche",
+  "ferrari",
+  "bmw",
+  "mercedes",
+  "ikea",
+  "eames",
+  "cartier",
+  "omega",
+  "suzuki",
+];
+
+const OBJECT_HINTS = [
+  "tracksuit",
+  "jacket",
+  "sneakers",
+  "shoe",
+  "bag",
+  "watch",
+  "chair",
+  "sofa",
+  "car",
+  "suv",
+  "jeans",
+  "denim",
+  "coat",
+  "boots",
+  "table",
+  "off-road",
+  "4x4",
+  "running",
+];
+
+const STYLE_HINTS = [
+  "vintage",
+  "quiet luxury",
+  "japanese denim",
+  "american heritage",
+  "streetwear",
+  "minimal",
+  "industrial",
+  "mid-century",
+  "heritage",
+  "aesthetic",
+  "style",
+  "design",
+  "avant garde",
+];
+
+export function isSourceLabelTag(tag: string): boolean {
+  const normalized = normalizeTag(tag);
+  return SOURCE_LABEL_TAGS.has(normalized);
+}
+
+export function sanitizeContentTags(tags: string[], max = 12): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of tags) {
+    const value = String(raw || "").trim();
+    const key = normalizeTag(value);
+    if (!value || !key || seen.has(key) || isSourceLabelTag(value)) continue;
+    seen.add(key);
+    out.push(value);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
+function includesHint(value: string, hints: string[]): boolean {
+  return hints.some((hint) => value === hint || value.includes(hint));
+}
+
+function tagPriority(tag: string): number {
+  const value = normalizeTag(tag);
+  if (!value) return 6;
+  if (includesHint(value, BRAND_HINTS)) return 0;
+  if (includesHint(value, OBJECT_HINTS)) return 2;
+  if (includesHint(value, STYLE_HINTS)) return 3;
+  const looksLikeModel = /\d/.test(value) || /[-/]/.test(value) || value.split(" ").length >= 2;
+  if (looksLikeModel) return 1;
+  return 4;
+}
+
+export function prioritizeUploadTags(tags: string[], max = 12): string[] {
+  const cleaned = sanitizeContentTags(tags, max);
+  return cleaned
+    .map((tag, index) => ({ tag, index, priority: tagPriority(tag) }))
+    .sort((a, b) => a.priority - b.priority || a.index - b.index)
+    .slice(0, max)
+    .map((item) => item.tag);
+}
+
 export function slugifyTag(tag: string): string {
   return normalizeTag(tag).replace(/\s+/g, "-");
 }

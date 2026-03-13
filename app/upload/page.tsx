@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
+import { prioritizeUploadTags, sanitizeContentTags } from "@/lib/tags";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -264,6 +265,10 @@ export default function UploadPage() {
       } else if (!tagsForEditorial.length && suggestedTags.length) {
         tagsForEditorial = mergeCaseInsensitive(tagsForEditorial, suggestedTags);
       }
+      const normalizedEditorialTags = prioritizeUploadTags(
+        sanitizeContentTags(tagsForEditorial, 12),
+        12,
+      );
 
       const res = await fetch("/api/generate-cards", {
         method: "POST",
@@ -271,7 +276,7 @@ export default function UploadPage() {
         body: JSON.stringify({
           upload: {
             note,
-            tags: tagsForEditorial,
+            tags: normalizedEditorialTags,
             image_url: uploadedImageUrl,
           },
         }),
@@ -360,11 +365,12 @@ export default function UploadPage() {
         throw new Error("Create your Persona handle before posting.");
       }
 
-      const finalTags = selectedTags.length
+      const finalTagsRaw = selectedTags.length
         ? selectedTags
         : suggestedTags.length
           ? suggestedTags
           : [];
+      const finalTags = prioritizeUploadTags(sanitizeContentTags(finalTagsRaw, 12), 12);
 
       if (!finalTags.length) {
         throw new Error("Add at least one tag to post on Persona.");

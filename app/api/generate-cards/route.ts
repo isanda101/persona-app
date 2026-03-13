@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { prioritizeUploadTags, sanitizeContentTags } from "@/lib/tags";
 
 type SavedSignal = { caption_short?: string; tags?: string[] };
 
@@ -299,7 +300,7 @@ export async function POST(req: Request) {
   // Upload mode: return one editorial card using upload note/tags (+ image_url).
   if (body.upload && typeof body.upload === "object") {
     const { note, tags, image_url, editorial, creator_name, creator_handle, creator_avatar, creator_id } = body.upload;
-    const safeTags = safeArrayStrings(tags, 12);
+    const safeTags = prioritizeUploadTags(safeArrayStrings(tags, 12), 12);
     const safeNote = typeof note === "string" ? note.trim() : "";
     const safeEditorial = typeof editorial === "string" ? editorial.trim() : "";
     const safeCreatorName = typeof creator_name === "string" && creator_name.trim()
@@ -358,7 +359,7 @@ Requirements:
           image_url: typeof image_url === "string" ? image_url : "",
           caption_short,
           caption_long,
-          tags: safeTags,
+          tags: sanitizeContentTags(safeTags, 12),
           attribution: "Uploaded by community",
           source: "community",
           creator_name: safeCreatorName,

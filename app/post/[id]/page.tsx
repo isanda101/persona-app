@@ -12,6 +12,7 @@ import {
   type EngagementMap,
 } from "@/lib/engagement";
 import { addComment, getComments, type PersonaComment } from "@/lib/comments";
+import { sanitizeContentTags, slugifyTag } from "@/lib/tags";
 
 type CardItem = {
   id: string;
@@ -53,9 +54,12 @@ function normalizeCard(value: unknown): CardItem | null {
     imageUrlRaw ||
     `https://picsum.photos/seed/${encodeURIComponent(topic || captionShort || id)}/1200/800`;
 
-  const tags = Array.isArray(obj.tags)
-    ? obj.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 12)
-    : [];
+  const tags = sanitizeContentTags(
+    Array.isArray(obj.tags)
+      ? obj.tags.map((tag) => String(tag || "").trim()).filter(Boolean).slice(0, 12)
+      : [],
+    12,
+  );
   const source = obj.source === "community" ? "community" : "editorial";
   const creator_name = String(obj.creator_name || "").trim();
   const creator_handle = String(obj.creator_handle || "").trim();
@@ -322,6 +326,7 @@ export default function PostDetailPage() {
   const creatorAvatarSrc = String(
     post.creator_avatar || (isCurrentUserCreator ? user?.imageUrl || "" : ""),
   ).trim();
+  const visibleTags = sanitizeContentTags(post.tags, 12);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -362,9 +367,7 @@ export default function PostDetailPage() {
                 <span>{creatorLine(post)}</span>
               )}
             </div>
-            <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
-              {sourceLabel(post)}
-            </div>
+            <div className="mt-1 text-xs text-gray-500">{sourceLabel(post)}</div>
 
             <div className="mt-3 flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 text-gray-600">
@@ -453,8 +456,22 @@ export default function PostDetailPage() {
               <div className="mt-2 text-xs text-gray-500">{actionMessage}</div>
             ) : null}
 
-            <div className="mt-3 text-xs text-gray-500">
-              {post.tags.length ? post.tags.join(" • ") : "No tags"}
+            <div className="mt-3">
+              {visibleTags.length ? (
+                <div className="flex flex-wrap gap-1.5">
+                  {visibleTags.map((tag) => (
+                    <Link
+                      key={`${post.id}-${tag}`}
+                      href={`/t/${encodeURIComponent(slugifyTag(tag))}`}
+                      className="px-2 py-1 rounded-full text-[11px] border bg-white text-gray-600 border-gray-300"
+                    >
+                      {tag}
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500">No tags</div>
+              )}
             </div>
             <div className="mt-4 text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">
               {post.caption_long || "No editorial text available."}
