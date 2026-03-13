@@ -16,7 +16,11 @@ import {
   isTagFollowed,
   readFollowedTags,
 } from "@/lib/followedTags";
-import { normalizeTag as normalizeFollowedTag, slugifyTag } from "@/lib/tags";
+import {
+  getRelatedTagsFromCards,
+  normalizeTag as normalizeFollowedTag,
+  slugifyTag,
+} from "@/lib/tags";
 
 type Card = {
   id: string;
@@ -114,6 +118,27 @@ function fallbackLetter(handle?: string, name?: string) {
   return source ? source.charAt(0).toUpperCase() : "U";
 }
 
+type CoOccurrenceCard = {
+  id: string;
+  tags: string[];
+};
+
+function normalizeCoOccurrenceCard(value: unknown): CoOccurrenceCard | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const id = String(obj.id || "").trim();
+  const topic = String(obj.topic || "").trim();
+  const rawTags = Array.isArray(obj.tags)
+    ? obj.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
+    : [];
+  const tags = rawTags.length ? rawTags : topic ? [topic] : [];
+  if (!tags.length) return null;
+  return {
+    id: id || `${topic}-${tags[0]}`,
+    tags,
+  };
+}
+
 export default function PersonaFeed() {
   const router = useRouter();
   const { isSignedIn } = useAuth();
@@ -183,6 +208,43 @@ export default function PersonaFeed() {
     () => (active?.id ? getEngagement(active.id, engagement) : getEngagement("")),
     [active, engagement],
   );
+  const exploreNextTags = useMemo(() => {
+    if (!active) return [];
+
+    const primaryTag =
+      (Array.isArray(active.tags) ? active.tags.map((tag) => String(tag || "").trim()).find(Boolean) : "") ||
+      String(active.topic || "").trim();
+    const normalizedPrimary = normalizeFollowedTag(primaryTag);
+    if (!normalizedPrimary) return [];
+
+    const sourceBuckets = [
+      ...readJSON<unknown[]>("persona:uploads", []),
+      ...readJSON<unknown[]>("persona:saved", []),
+      ...readJSON<unknown[]>("persona:collection", []),
+      ...readJSON<unknown[]>("persona:feed_cache", []),
+      ...cards,
+    ];
+
+    const parsedCards = sourceBuckets
+      .map((item) => normalizeCoOccurrenceCard(item))
+      .filter((item): item is CoOccurrenceCard => Boolean(item));
+
+    const seen = new Set<string>();
+    const deduped: CoOccurrenceCard[] = [];
+    for (const card of parsedCards) {
+      if (!card.id || seen.has(card.id)) continue;
+      seen.add(card.id);
+      deduped.push(card);
+      if (deduped.length >= 400) break;
+    }
+
+    const matching = deduped.filter((card) =>
+      card.tags.some((tag) => normalizeFollowedTag(tag) === normalizedPrimary),
+    );
+    if (!matching.length) return [];
+
+    return getRelatedTagsFromCards(matching, primaryTag, 2);
+  }, [active, cards]);
 
   useEffect(() => {
     const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
@@ -938,6 +1000,36 @@ export default function PersonaFeed() {
                     )}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
+                  {exploreNextTags.length ? (
+                    <div className="mt-2">
+                      <div className="text-[11px] text-gray-500 uppercase tracking-wide">
+                        Explore next
+                      </div>
+                      <div className="mt-1 flex flex-wrap gap-2">
+                        {exploreNextTags.map((tag) => {
+                          const followed = isTagFollowed(tag, followedTags);
+                          return (
+                            <button
+                              key={`explore-next-${active.id}-${tag}`}
+                              type="button"
+                              onPointerDown={(e) => e.stopPropagation()}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                router.push(`/t/${encodeURIComponent(slugifyTag(tag))}`);
+                              }}
+                              className={`rounded-full border px-3 py-1 text-xs ${
+                                followed
+                                  ? "bg-black text-white border-black"
+                                  : "bg-white text-gray-700 border-gray-300"
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : null}
 
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
