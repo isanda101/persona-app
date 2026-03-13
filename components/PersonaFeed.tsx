@@ -25,6 +25,7 @@ type Card = {
   source?: "community" | "editorial";
   creator_name?: string;
   creator_handle?: string;
+  creator_avatar?: string;
   likes_count?: number;
   comments_count?: number;
   collections_count?: number;
@@ -96,6 +97,15 @@ function deriveImageQuery(topic: string, tags: string[]) {
 
 function img(topic: string) {
   return `https://picsum.photos/seed/${encodeURIComponent(topic)}/1200/800`;
+}
+
+function cleanHandle(handle?: string) {
+  return String(handle || "").trim().replace(/^@+/, "");
+}
+
+function fallbackLetter(handle?: string, name?: string) {
+  const source = cleanHandle(handle) || String(name || "").trim();
+  return source ? source.charAt(0).toUpperCase() : "U";
 }
 
 export default function PersonaFeed() {
@@ -797,24 +807,39 @@ export default function PersonaFeed() {
 
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
-                    {active.source === "community" && active.creator_handle ? (
+                    {active.source === "community" ? (
+                      <div className="flex items-center gap-2">
+                        {active.creator_avatar ? (
+                          <img
+                            src={active.creator_avatar}
+                            alt={active.creator_name || active.creator_handle || "Creator avatar"}
+                            className="w-7 h-7 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[11px] font-medium">
+                            {fallbackLetter(active.creator_handle, active.creator_name)}
+                          </div>
+                        )}
+                        {active.creator_handle ? (
+                          <Link
+                            href={creatorHrefFromHandle(active.creator_handle)}
+                            className="hover:text-gray-700 active:text-black transition-colors"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            by @{cleanHandle(active.creator_handle)}
+                          </Link>
+                        ) : (
+                          <span>by {active.creator_name || "@you"}</span>
+                        )}
+                      </div>
+                    ) : active.creator_handle ? (
                       <Link
                         href={creatorHrefFromHandle(active.creator_handle)}
                         className="hover:text-gray-700 active:text-black transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        by {active.creator_handle.startsWith("@") ? active.creator_handle : `@${active.creator_handle}`}
+                        by @{cleanHandle(active.creator_handle)}
                       </Link>
-                    ) : active.source !== "community" && active.creator_handle ? (
-                      <Link
-                        href={creatorHrefFromHandle(active.creator_handle)}
-                        className="hover:text-gray-700 active:text-black transition-colors"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        by {active.creator_handle.startsWith("@") ? active.creator_handle : `@${active.creator_handle}`}
-                      </Link>
-                    ) : active.source === "community" ? (
-                      "by @you"
                     ) : (
                       "Persona Editorial"
                     )}

@@ -23,6 +23,7 @@ type CardItem = {
   source?: "community" | "editorial";
   creator_name?: string;
   creator_handle?: string;
+  creator_avatar?: string;
   likes_count?: number;
   comments_count?: number;
   collections_count?: number;
@@ -57,6 +58,7 @@ function normalizeCard(value: unknown): CardItem | null {
   const source = obj.source === "community" ? "community" : "editorial";
   const creator_name = String(obj.creator_name || "").trim();
   const creator_handle = String(obj.creator_handle || "").trim();
+  const creator_avatar = String(obj.creator_avatar || "").trim();
   const likes_count = Math.max(0, Number(obj.likes_count) || 0);
   const comments_count = Math.max(0, Number(obj.comments_count) || 0);
   const collections_count = Math.max(0, Number(obj.collections_count) || 0);
@@ -71,6 +73,7 @@ function normalizeCard(value: unknown): CardItem | null {
     source,
     creator_name: creator_name || undefined,
     creator_handle: creator_handle || undefined,
+    creator_avatar: creator_avatar || undefined,
     likes_count,
     comments_count,
     collections_count,
@@ -106,6 +109,11 @@ function cleanHandle(handle?: string) {
 function formatHandle(handle?: string) {
   const clean = cleanHandle(handle);
   return clean ? `@${clean}` : "";
+}
+
+function fallbackLetter(handle?: string, name?: string) {
+  const source = cleanHandle(handle) || String(name || "").trim();
+  return source ? source.charAt(0).toUpperCase() : "U";
 }
 
 export default function PostDetailPage() {
@@ -256,11 +264,13 @@ export default function PostDetailPage() {
       "Persona User"
     ).trim();
     const authorHandle = `@${username}`;
+    const authorAvatar = String(user?.imageUrl || "").trim();
 
     const comment: PersonaComment = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       author_name: authorName,
       author_handle: authorHandle,
+      author_avatar: authorAvatar || undefined,
       text,
       created_at: Date.now(),
     };
@@ -314,16 +324,29 @@ export default function PostDetailPage() {
           />
           <div className="p-4">
             <div className="text-xl font-semibold">{title}</div>
-            <div className="mt-1 text-xs text-gray-500">
+            <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
               {creatorHandle ? (
-                <Link
-                  href={`/u/${encodeURIComponent(creatorHandle)}`}
-                  className="hover:text-gray-700 active:text-black transition-colors"
-                >
-                  by {formatHandle(post.creator_handle)}
-                </Link>
+                <>
+                  {post.creator_avatar ? (
+                    <img
+                      src={post.creator_avatar}
+                      alt={post.creator_name || formatHandle(post.creator_handle) || "Creator avatar"}
+                      className="w-8 h-8 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xs font-medium">
+                      {fallbackLetter(post.creator_handle, post.creator_name)}
+                    </div>
+                  )}
+                  <Link
+                    href={`/u/${encodeURIComponent(creatorHandle)}`}
+                    className="hover:text-gray-700 active:text-black transition-colors"
+                  >
+                    by {formatHandle(post.creator_handle)}
+                  </Link>
+                </>
               ) : (
-                creatorLine(post)
+                <span>{creatorLine(post)}</span>
               )}
             </div>
             <div className="mt-2 inline-flex px-2 py-0.5 rounded-full text-[11px] border border-gray-300 text-gray-600">
@@ -481,18 +504,31 @@ export default function PostDetailPage() {
               <div className="mt-4 space-y-3">
                 {comments.length ? comments.map((comment) => (
                   <div key={comment.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
-                    <div className="text-xs text-gray-500">
-                      {cleanHandle(comment.author_handle) ? (
-                        <Link
-                          href={`/u/${encodeURIComponent(cleanHandle(comment.author_handle))}`}
-                          className="hover:text-gray-700 active:text-black transition-colors"
-                        >
-                          {formatHandle(comment.author_handle)}
-                        </Link>
+                    <div className="flex items-center gap-2 text-xs text-gray-500">
+                      {comment.author_avatar ? (
+                        <img
+                          src={comment.author_avatar}
+                          alt={comment.author_name || comment.author_handle || "Avatar"}
+                          className="w-7 h-7 rounded-full object-cover"
+                        />
                       ) : (
-                        comment.author_name
+                        <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[11px] font-medium">
+                          {fallbackLetter(comment.author_handle, comment.author_name)}
+                        </div>
                       )}
-                      {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
+                      <span>
+                        {cleanHandle(comment.author_handle) ? (
+                          <Link
+                            href={`/u/${encodeURIComponent(cleanHandle(comment.author_handle))}`}
+                            className="hover:text-gray-700 active:text-black transition-colors"
+                          >
+                            {formatHandle(comment.author_handle)}
+                          </Link>
+                        ) : (
+                          comment.author_name
+                        )}
+                        {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
+                      </span>
                     </div>
                     <div className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{comment.text}</div>
                   </div>

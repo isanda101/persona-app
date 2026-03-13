@@ -14,6 +14,7 @@ type CardItem = {
   source?: "community" | "editorial";
   creator_name?: string;
   creator_handle?: string;
+  creator_avatar?: string;
 };
 
 type ParsedLikes = {
@@ -50,6 +51,7 @@ function normalizeCard(value: unknown): CardItem | null {
   const source = obj.source === "community" ? "community" : "editorial";
   const creator_name = String(obj.creator_name || "").trim();
   const creator_handle = String(obj.creator_handle || "").trim();
+  const creator_avatar = String(obj.creator_avatar || "").trim();
 
   return {
     id,
@@ -60,6 +62,7 @@ function normalizeCard(value: unknown): CardItem | null {
     source,
     creator_name: creator_name || undefined,
     creator_handle: creator_handle || undefined,
+    creator_avatar: creator_avatar || undefined,
   };
 }
 
@@ -177,6 +180,11 @@ function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: S
     return String(handle || "").trim().replace(/^@+/, "");
   }
 
+  function fallbackLetter(handle?: string, name?: string) {
+    const source = cleanHandle(handle) || String(name || "").trim();
+    return source ? source.charAt(0).toUpperCase() : "U";
+  }
+
   return (
     <section className="mt-5">
       {items.length === 0 ? <div className="text-sm text-gray-500">{emptyText}</div> : null}
@@ -197,17 +205,30 @@ function GridPanel({ emptyText, items, onRemove, showCommunityBadge = false }: S
                   {creatorLine(card) ? (
                     <div className="text-xs text-gray-500 mt-0.5 truncate">
                       {cleanHandle(card.creator_handle) ? (
-                        <button
-                          type="button"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            router.push(`/u/${encodeURIComponent(cleanHandle(card.creator_handle))}`);
-                          }}
-                          className="hover:text-gray-700 active:text-black transition-colors"
-                        >
-                          {creatorLine(card)}
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {card.creator_avatar ? (
+                            <img
+                              src={card.creator_avatar}
+                              alt={card.creator_name || card.creator_handle || "Creator avatar"}
+                              className="w-6 h-6 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[10px] font-medium">
+                              {fallbackLetter(card.creator_handle, card.creator_name)}
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              router.push(`/u/${encodeURIComponent(cleanHandle(card.creator_handle))}`);
+                            }}
+                            className="hover:text-gray-700 active:text-black transition-colors"
+                          >
+                            {creatorLine(card)}
+                          </button>
+                        </div>
                       ) : (
                         creatorLine(card)
                       )}

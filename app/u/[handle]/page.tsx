@@ -153,13 +153,19 @@ export default function UserHandlePage() {
                 <div className="mt-4 rounded-lg border border-gray-200 p-4">
                   <div className="flex items-center gap-3">
                     {user?.imageUrl ? (
-                      <img src={user.imageUrl} alt={profileName} className="h-12 w-12 rounded-full object-cover" />
+                      <img src={user.imageUrl} alt={profileName} className="h-20 w-20 rounded-full object-cover" />
                     ) : (
-                      <div className="h-12 w-12 rounded-full bg-gray-200" />
+                      <div className="h-20 w-20 rounded-full bg-gray-200" />
                     )}
                     <div>
                       <div className="text-lg font-semibold">{profileIdentity}</div>
                       <div className="text-sm text-gray-600 mt-1">{profileName}</div>
+                      <Link
+                        href="/user-profile"
+                        className="inline-block mt-2 text-xs text-gray-500 hover:text-gray-700 active:text-black"
+                      >
+                        Manage avatar
+                      </Link>
                     </div>
                   </div>
                 </div>
