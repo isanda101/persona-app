@@ -90,6 +90,7 @@ export default function TagPage() {
     card.tags.some((tag) => normalizeTag(tag) === normalizedTag),
   );
   const relatedTags = getRelatedTagsFromCards(cards, displayTag, 6);
+  const trailNodes = [displayTag, ...relatedTags.slice(0, 3)].filter(Boolean);
 
   const following = isTagFollowed(displayTag, followedTags);
 
@@ -133,6 +134,36 @@ export default function TagPage() {
                   {tag}
                 </Link>
               ))}
+            </div>
+          </div>
+        ) : null}
+
+        {trailNodes.length >= 2 ? (
+          <div className="mt-5">
+            <div className="text-sm font-medium text-gray-500 mb-2">Taste Trail</div>
+            <div className="flex items-center gap-2 flex-wrap">
+              {trailNodes.map((tag, idx) => {
+                const isCurrent = idx === 0;
+                return (
+                  <div key={`trail-${tag}-${idx}`} className="inline-flex items-center gap-2">
+                    {isCurrent ? (
+                      <span className="rounded-full border px-3 py-1.5 text-sm bg-black text-white border-black">
+                        {tag}
+                      </span>
+                    ) : (
+                      <Link
+                        href={`/t/${encodeURIComponent(slugifyTag(tag))}`}
+                        className="rounded-full border px-3 py-1.5 text-sm bg-white text-black border-gray-300"
+                      >
+                        {tag}
+                      </Link>
+                    )}
+                    {idx < trailNodes.length - 1 ? (
+                      <span className="text-sm text-gray-400">→</span>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
         ) : null}
