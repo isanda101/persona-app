@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SignInButton, useAuth } from "@clerk/nextjs";
 import BottomNav from "@/components/BottomNav";
 
 type AppShellProps = {
@@ -21,17 +22,33 @@ function shouldShowBottomNav(pathname: string): boolean {
 
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const { isSignedIn } = useAuth();
   const showBottomNav = shouldShowBottomNav(pathname);
-  const showHomeHeader = pathname === "/";
+  const showTopHeader =
+    pathname === "/" ||
+    pathname === "/search" ||
+    pathname === "/collection" ||
+    pathname === "/saved";
+  const showAuthPill = showTopHeader && !isSignedIn;
 
   return (
     <>
-      {showHomeHeader ? (
+      {showTopHeader ? (
         <header className="sticky top-0 z-40 h-12 bg-white border-b border-gray-200">
-          <div className="h-full flex items-center px-4">
+          <div className="h-full flex items-center justify-between px-4">
             <Link href="/" className="px-3 py-1 rounded-full bg-black text-white text-sm font-medium">
               Persona
             </Link>
+            {showAuthPill ? (
+              <SignInButton mode="modal">
+                <button
+                  type="button"
+                  className="px-3 py-1 rounded-full bg-black text-white text-sm font-medium"
+                >
+                  Sign in
+                </button>
+              </SignInButton>
+            ) : null}
           </div>
         </header>
       ) : null}
