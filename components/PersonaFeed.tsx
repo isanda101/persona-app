@@ -129,10 +129,6 @@ function getFeedPreview(text: string, max = 260) {
   return `${truncated.trim()}...`;
 }
 
-function isFeedPreviewTruncated(text: string, max = 260) {
-  return String(text || "").trim().length > max;
-}
-
 type CoOccurrenceCard = {
   id: string;
   tags: string[];
@@ -266,10 +262,6 @@ export default function PersonaFeed() {
   }, [active, cards, displayTags]);
   const feedPreviewText = useMemo(
     () => getFeedPreview(String(active?.caption_long || ""), 260),
-    [active],
-  );
-  const feedPreviewIsTruncated = useMemo(
-    () => isFeedPreviewTruncated(String(active?.caption_long || ""), 260),
     [active],
   );
 
@@ -985,7 +977,7 @@ export default function PersonaFeed() {
                   ) : null}
 
                   <div className="mt-2 text-base font-medium">{active.caption_short}</div>
-                  <div className="mt-1" onPointerDown={(e) => e.stopPropagation()}>
+                  <div className="mt-2 flex items-center justify-between" onPointerDown={(e) => e.stopPropagation()}>
                     {!expanded ? (
                       <button onClick={() => setExpanded(true)} className="text-sm underline">
                         Read more
@@ -998,6 +990,13 @@ export default function PersonaFeed() {
                         Show less
                       </button>
                     )}
+                    <Link
+                      href={`/post/${encodeURIComponent(active.id)}`}
+                      className="text-sm underline text-gray-600"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Open post
+                    </Link>
                   </div>
                   {expanded ? (
                     <div
@@ -1005,17 +1004,6 @@ export default function PersonaFeed() {
                       className="mt-2 text-sm text-gray-700 leading-relaxed"
                     >
                       {feedPreviewText}
-                    </div>
-                  ) : null}
-                  {expanded && feedPreviewIsTruncated ? (
-                    <div className="mt-1" onPointerDown={(e) => e.stopPropagation()}>
-                      <Link
-                        href={`/post/${encodeURIComponent(active.id)}`}
-                        className="text-xs underline text-gray-600"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Open post
-                      </Link>
                     </div>
                   ) : null}
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
