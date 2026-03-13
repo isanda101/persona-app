@@ -1018,34 +1018,52 @@ export default function PersonaFeed() {
                   </div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
                   {exploreNextTags.length ? (
-                    <div className="mt-2">
-                      <div className="text-[11px] text-gray-500 uppercase tracking-wide">
-                        Explore next
+                    <>
+                      <div
+                        className="mt-1 text-[11px] text-gray-500 md:hidden"
+                        onPointerDown={(e) => e.stopPropagation()}
+                      >
+                        <span>Next taste:</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/t/${encodeURIComponent(slugifyTag(exploreNextTags[0]))}`);
+                          }}
+                          className="ml-1 text-gray-700 underline"
+                        >
+                          {exploreNextTags[0]} →
+                        </button>
                       </div>
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        {exploreNextTags.map((tag) => {
-                          const followed = isTagFollowed(tag, followedTags);
-                          return (
-                            <button
-                              key={`explore-next-${active.id}-${tag}`}
-                              type="button"
-                              onPointerDown={(e) => e.stopPropagation()}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/t/${encodeURIComponent(slugifyTag(tag))}`);
-                              }}
-                              className={`rounded-full border px-3 py-1 text-xs ${
-                                followed
-                                  ? "bg-black text-white border-black"
-                                  : "bg-white text-gray-700 border-gray-300"
-                              }`}
-                            >
-                              {tag}
-                            </button>
-                          );
-                        })}
+                      <div className="mt-2 hidden md:block">
+                        <div className="text-[11px] text-gray-500 uppercase tracking-wide">
+                          Explore next
+                        </div>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {exploreNextTags.map((tag) => {
+                            const followed = isTagFollowed(tag, followedTags);
+                            return (
+                              <button
+                                key={`explore-next-${active.id}-${tag}`}
+                                type="button"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/t/${encodeURIComponent(slugifyTag(tag))}`);
+                                }}
+                                className={`rounded-full border px-3 py-1 text-xs ${
+                                  followed
+                                    ? "bg-black text-white border-black"
+                                    : "bg-white text-gray-700 border-gray-300"
+                                }`}
+                              >
+                                {tag}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
+                    </>
                   ) : null}
 
                   <div
