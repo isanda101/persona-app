@@ -306,7 +306,7 @@ export default function PostDetailPage() {
           <PersonaHeader showBack />
           <h1 className="text-2xl font-semibold">Post</h1>
           <div className="mt-4 text-gray-600">Post not found</div>
-          <Link href="/collection" className="mt-4 inline-block underline text-sm">
+          <Link href="/u/you?tab=collected" className="mt-4 inline-block underline text-sm">
             Back to Collection
           </Link>
         </div>

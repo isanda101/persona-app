@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { Bookmark, Home, PlusSquare, Search, User } from "lucide-react";
+import { Home, PlusSquare, Search, User } from "lucide-react";
 
 type NavItem = {
   label: string;
@@ -30,12 +30,6 @@ const ITEMS: NavItem[] = [
     href: "/upload",
     Icon: PlusSquare,
     isActive: (pathname) => pathname === "/upload",
-  },
-  {
-    label: "Collection",
-    href: "/collection",
-    Icon: Bookmark,
-    isActive: (pathname) => pathname === "/collection" || pathname === "/saved",
   },
   {
     label: "Profile",
