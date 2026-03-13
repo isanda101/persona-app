@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import PersonaHeader from "@/components/PersonaHeader";
 import { isTagFollowed, readFollowedTags, toggleFollowedTag } from "@/lib/followedTags";
-import { normalizeTag, unslugifyTag } from "@/lib/tags";
+import { getRelatedTagsFromCards, normalizeTag, slugifyTag, unslugifyTag } from "@/lib/tags";
 
 type CardItem = {
   id: string;
@@ -89,6 +89,7 @@ export default function TagPage() {
   const cards = mergedCards.filter((card) =>
     card.tags.some((tag) => normalizeTag(tag) === normalizedTag),
   );
+  const relatedTags = getRelatedTagsFromCards(cards, displayTag, 6);
 
   const following = isTagFollowed(displayTag, followedTags);
 
@@ -118,6 +119,23 @@ export default function TagPage() {
             {following ? "Following" : "Follow"}
           </button>
         </div>
+
+        {relatedTags.length ? (
+          <div className="mt-5">
+            <div className="text-sm font-medium text-gray-500 mb-2">Related Tags</div>
+            <div className="flex flex-wrap gap-2">
+              {relatedTags.map((tag) => (
+                <Link
+                  key={`related-${tag}`}
+                  href={`/t/${encodeURIComponent(slugifyTag(tag))}`}
+                  className="rounded-full border px-3 py-1.5 text-sm bg-white text-black border-gray-300"
+                >
+                  {tag}
+                </Link>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         {cards.length ? (
           <div className="grid grid-cols-2 gap-3 mt-5">
