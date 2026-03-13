@@ -15,9 +15,8 @@ import {
 import {
   isTagFollowed,
   readFollowedTags,
-  toggleFollowedTag,
-  normalizeTag as normalizeFollowedTag,
 } from "@/lib/followedTags";
+import { normalizeTag as normalizeFollowedTag, slugifyTag } from "@/lib/tags";
 
 type Card = {
   id: string;
@@ -195,6 +194,7 @@ export default function PersonaFeed() {
   useEffect(() => {
     function refreshEngagementFromStorage() {
       setEngagement(readEngagement());
+      setFollowedTags(readFollowedTags());
     }
 
     window.addEventListener("focus", refreshEngagementFromStorage);
@@ -687,15 +687,6 @@ export default function PersonaFeed() {
     return `/u/${raw.replace(/^@+/, "")}`;
   }
 
-  function handleToggleFollowTag(tag: string) {
-    const clean = String(tag || "").trim();
-    if (!clean) return;
-    const result = toggleFollowedTag(clean);
-    setFollowedTags(result.tags);
-    setToast(result.followed ? `Followed ${clean}` : `Unfollowed ${clean}`);
-    window.setTimeout(() => setToast(null), 900);
-  }
-
   async function handleShare() {
     const shareUrl = window.location.href;
     if (navigator.share) {
@@ -888,7 +879,7 @@ export default function PersonaFeed() {
                           onPointerDown={(e) => e.stopPropagation()}
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleToggleFollowTag(tag);
+                            router.push(`/t/${encodeURIComponent(slugifyTag(tag))}`);
                           }}
                           className={`px-2 py-1 rounded-full text-[11px] border transition ${
                             followed

@@ -14,6 +14,7 @@ function shouldShowBottomNav(pathname: string): boolean {
   if (pathname === "/upload") return true;
   if (pathname === "/collection" || pathname === "/saved") return true;
   if (pathname.startsWith("/post/")) return true;
+  if (pathname.startsWith("/t/")) return true;
   if (pathname.startsWith("/u/")) return true;
   return false;
 }

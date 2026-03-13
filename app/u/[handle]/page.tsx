@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import { readFollowedTags } from "@/lib/followedTags";
+import { slugifyTag } from "@/lib/tags";
 
 type CardItem = {
   id: string;
@@ -189,7 +190,7 @@ export default function UserHandlePage() {
                       {followedTags.map((tag) => (
                         <Link
                           key={tag}
-                          href={`/search?q=${encodeURIComponent(tag)}`}
+                          href={`/t/${encodeURIComponent(slugifyTag(tag))}`}
                           className="px-2.5 py-1 rounded-full text-xs border border-gray-300 text-gray-700 hover:text-black hover:border-gray-400"
                         >
                           {tag}

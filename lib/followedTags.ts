@@ -1,8 +1,6 @@
-const FOLLOWED_TAGS_KEY = "persona:followed_tags";
+import { normalizeTag } from "@/lib/tags";
 
-export function normalizeTag(tag: string): string {
-  return String(tag || "").trim().toLowerCase();
-}
+const FOLLOWED_TAGS_KEY = "persona:followed_tags";
 
 function dedupeTags(tags: string[]): string[] {
   const seen = new Set<string>();

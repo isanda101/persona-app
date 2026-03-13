@@ -8,6 +8,7 @@ import {
   readFollowedTags,
   toggleFollowedTag,
 } from "@/lib/followedTags";
+import { slugifyTag } from "@/lib/tags";
 
 type SearchTab = "top" | "posts" | "tags" | "creators";
 
@@ -289,16 +290,12 @@ export default function SearchPage() {
                   const followed = isTagFollowed(item.tag, followedTags);
                   return (
                     <div key={`top-tag-${item.tag}-${idx}`} className="inline-flex items-center gap-2 mr-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQuery(item.tag);
-                          setActiveTab("tags");
-                        }}
+                      <Link
+                        href={`/t/${encodeURIComponent(slugifyTag(item.tag))}`}
                         className="inline-flex px-3 py-2 rounded-full text-sm border border-gray-300 bg-white"
                       >
                         #{item.tag}
-                      </button>
+                      </Link>
                       <button
                         type="button"
                         onClick={() => {
@@ -362,13 +359,12 @@ export default function SearchPage() {
                   key={tag}
                   className="flex items-center justify-between rounded-xl border border-gray-200 px-3 py-2"
                 >
-                  <button
-                    type="button"
-                    onClick={() => setQuery(tag)}
+                  <Link
+                    href={`/t/${encodeURIComponent(slugifyTag(tag))}`}
                     className="text-sm text-left"
                   >
                     #{tag}
-                  </button>
+                  </Link>
                   <button
                     type="button"
                     onClick={() => {
