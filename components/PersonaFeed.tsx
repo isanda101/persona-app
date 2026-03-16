@@ -24,6 +24,7 @@ import {
   slugifyTag,
 } from "@/lib/tags";
 import {
+  type CardWithId,
   dedupeCardsByIdNewestFirst,
   readStoredCards,
   writeStoredCards,
@@ -60,9 +61,7 @@ type SavedSignal = {
   tags?: string[];
 };
 
-type StoredUploadRecord = Record<string, unknown> & {
-  id?: string | null;
-};
+type StoredUploadRecord = CardWithId & Record<string, unknown>;
 
 function readJSON<T>(key: string, fallback: T): T {
   try {
@@ -324,7 +323,7 @@ export default function PersonaFeed() {
       if (!Array.isArray(uploadsParsed)) return;
 
       let changed = false;
-      const repaired = uploadsParsed.map((entry: unknown) => {
+      const repaired: CardWithId[] = uploadsParsed.map((entry) => {
         if (!entry || typeof entry !== "object") return entry;
         const obj = entry as Record<string, unknown>;
         const creatorId = String(obj.creator_id || "").trim();

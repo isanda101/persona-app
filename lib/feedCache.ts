@@ -1,4 +1,4 @@
-type CardWithId = {
+export type CardWithId = {
   id?: string | null;
 };
 
