@@ -23,6 +23,11 @@ import {
   sanitizeContentTags,
   slugifyTag,
 } from "@/lib/tags";
+import {
+  dedupeCardsByIdNewestFirst,
+  readStoredCards,
+  writeStoredCards,
+} from "@/lib/feedCache";
 
 type Card = {
   id: string;
@@ -55,6 +60,10 @@ type SavedSignal = {
   tags?: string[];
 };
 
+type StoredUploadRecord = Record<string, unknown> & {
+  id?: string | null;
+};
+
 function readJSON<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
@@ -70,23 +79,13 @@ function writeJSON(key: string, value: unknown) {
 }
 
 function updateFeedCache(incoming: Card[], savedCards?: Card[]) {
-  const existing = readJSON<Card[]>("persona:feed_cache", []);
+  const uploads = readStoredCards<Card>("persona:uploads");
+  const existing = readStoredCards<Card>("persona:feed_cache");
   const saved = Array.isArray(savedCards) ? savedCards : readJSON<Card[]>("persona:saved", []);
-  const merged = [...incoming, ...saved, ...existing].filter(
+  const merged = [...uploads, ...incoming, ...saved, ...existing].filter(
     (card) => card && typeof card.id === "string" && card.id.trim(),
   );
-
-  const seen = new Set<string>();
-  const next: Card[] = [];
-  for (const card of merged) {
-    const key = String(card.id || "").trim();
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    next.push(card);
-    if (next.length >= 200) break;
-  }
-
-  writeJSON("persona:feed_cache", next);
+  writeStoredCards("persona:feed_cache", dedupeCardsByIdNewestFirst(merged, 200));
 }
 
 function deriveImageQuery(topic: string, tags: string[]) {
@@ -183,16 +182,7 @@ export default function PersonaFeed() {
   const seenTagsRef = useRef<string[]>([]);
 
   function dedupeById(cardsList: Card[], max = 200): Card[] {
-    const seen = new Set<string>();
-    const out: Card[] = [];
-    for (const card of cardsList) {
-      const key = String(card?.id || "").trim();
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      out.push(card);
-      if (out.length >= max) break;
-    }
-    return out;
+    return dedupeCardsByIdNewestFirst(cardsList, max);
   }
 
   const active = useMemo(() => cards[index], [cards, index]);
@@ -330,8 +320,7 @@ export default function PersonaFeed() {
     if (!username && !userId) return;
 
     try {
-      const uploadsRaw = localStorage.getItem("persona:uploads") || "[]";
-      const uploadsParsed = JSON.parse(uploadsRaw);
+      const uploadsParsed = readStoredCards<StoredUploadRecord>("persona:uploads");
       if (!Array.isArray(uploadsParsed)) return;
 
       let changed = false;
@@ -358,7 +347,7 @@ export default function PersonaFeed() {
       });
 
       if (changed) {
-        localStorage.setItem("persona:uploads", JSON.stringify(repaired));
+        writeStoredCards("persona:uploads", repaired);
       }
     } catch {
       // no-op
@@ -409,7 +398,7 @@ export default function PersonaFeed() {
   ): Card[] {
     let uploads: unknown[] = [];
     try {
-      uploads = JSON.parse(localStorage.getItem("persona:uploads") || "[]");
+      uploads = readStoredCards("persona:uploads");
     } catch {
       uploads = [];
     }
@@ -588,8 +577,9 @@ export default function PersonaFeed() {
       const savedAll = readJSON<Card[]>("persona:saved", []);
       setSavedIds(savedAll.map((c) => c.id));
 
-      const cached = readJSON<Card[]>("persona:feed_cache", []);
-      const fastCards = dedupeById(cached, 5);
+      const uploads = readStoredCards<Card>("persona:uploads");
+      const cached = readStoredCards<Card>("persona:feed_cache");
+      const fastCards = dedupeById([...uploads, ...cached], 5);
       if (fastCards.length) {
         setCards(fastCards);
         addSeenFromCards(fastCards);

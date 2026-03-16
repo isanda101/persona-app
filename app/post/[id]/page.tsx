@@ -11,7 +11,7 @@ import {
   writeEngagement,
   type EngagementMap,
 } from "@/lib/engagement";
-import { addComment, getComments, type PersonaComment } from "@/lib/comments";
+import { addComment, getComments, removeComment, type PersonaComment } from "@/lib/comments";
 import { prioritizeUploadTags, sanitizeContentTags, slugifyTag } from "@/lib/tags";
 
 type CardItem = {
@@ -299,6 +299,29 @@ export default function PostDetailPage() {
     });
   }
 
+  function handleDeleteComment(comment: PersonaComment) {
+    if (!post || !user) return;
+
+    const nextComments = removeComment(post.id, comment.id, {
+      author_id: user.id,
+      author_handle: user.username || "",
+    });
+
+    if (nextComments.length === comments.length) return;
+
+    setComments(nextComments);
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(post.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        comments_count: Math.max(0, current.comments_count - 1),
+      };
+      const nextEngagement = { ...prevEngagement, [post.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
+    });
+  }
+
   if (!post) {
     return (
       <div className="min-h-screen bg-white text-black px-5 py-8">
@@ -546,31 +569,43 @@ export default function PostDetailPage() {
                         comment.author_avatar || (isOwnComment ? user?.imageUrl || "" : ""),
                       ).trim();
                       return (
-                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                      {commentAvatar ? (
-                        <img
-                          src={commentAvatar}
-                          alt={comment.author_name || comment.author_handle || "Avatar"}
-                          className="w-7 h-7 rounded-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[11px] font-medium">
-                          {fallbackLetter(comment.author_handle, comment.author_name)}
-                        </div>
-                      )}
-                      <span>
-                        {cleanHandle(comment.author_handle) ? (
-                          <Link
-                            href={`/u/${encodeURIComponent(cleanHandle(comment.author_handle))}`}
-                            className="hover:text-gray-700 active:text-black transition-colors"
-                          >
-                            {formatHandle(comment.author_handle)}
-                          </Link>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                        {commentAvatar ? (
+                          <img
+                            src={commentAvatar}
+                            alt={comment.author_name || comment.author_handle || "Avatar"}
+                            className="w-7 h-7 rounded-full object-cover"
+                          />
                         ) : (
-                          comment.author_name
+                          <div className="w-7 h-7 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-[11px] font-medium">
+                            {fallbackLetter(comment.author_handle, comment.author_name)}
+                          </div>
                         )}
-                        {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
-                      </span>
+                        <span>
+                          {cleanHandle(comment.author_handle) ? (
+                            <Link
+                              href={`/u/${encodeURIComponent(cleanHandle(comment.author_handle))}`}
+                              className="hover:text-gray-700 active:text-black transition-colors"
+                            >
+                              {formatHandle(comment.author_handle)}
+                            </Link>
+                          ) : (
+                            comment.author_name
+                          )}
+                          {comment.created_at ? ` • ${formatCommentTimestamp(comment.created_at)}` : ""}
+                        </span>
+                      </div>
+                      {isOwnComment ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteComment(comment)}
+                          className="text-xs text-gray-400 hover:text-gray-600 transition"
+                          aria-label="Delete comment"
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                       );
                     })()}

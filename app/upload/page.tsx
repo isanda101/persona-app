@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { upload } from "@vercel/blob/client";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
+import { prependCardToStorage } from "@/lib/feedCache";
 import { buildIdentityFirstTags, sanitizeContentTags } from "@/lib/tags";
 
 const OPTIONS = [
@@ -438,10 +439,8 @@ export default function UploadPage() {
         creator_avatar: String(cardData.cards[0]?.creator_avatar || creatorAvatar || ""),
         creator_id: String(cardData.cards[0]?.creator_id || creatorId || ""),
       };
-      const existingRaw = localStorage.getItem("persona:uploads") || "[]";
-      const parsedExisting = JSON.parse(existingRaw);
-      const existing = Array.isArray(parsedExisting) ? parsedExisting : [];
-      localStorage.setItem("persona:uploads", JSON.stringify([newCard, ...existing]));
+      prependCardToStorage("persona:uploads", newCard);
+      prependCardToStorage("persona:feed_cache", newCard);
 
       setError("");
 
