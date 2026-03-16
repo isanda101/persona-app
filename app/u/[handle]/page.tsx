@@ -42,6 +42,10 @@ function cleanHandle(handle?: string) {
   return String(handle || "").trim().replace(/^@+/, "");
 }
 
+function normalizeHandle(handle?: string) {
+  return cleanHandle(handle).toLowerCase();
+}
+
 function normalizeCard(value: unknown): CardItem | null {
   if (!value || typeof value !== "object") return null;
   const obj = value as Record<string, unknown>;
@@ -162,12 +166,12 @@ function isTabKey(value: string): value is TabKey {
 
 function readOwnPosted(resolvedHandle: string, userId?: string): CardItem[] {
   const uploads = readCardArray("persona:uploads");
-  const handleKey = resolvedHandle.toLowerCase();
+  const handleKey = normalizeHandle(resolvedHandle);
   const idKey = String(userId || "").trim();
 
   return uploads.filter((card) => {
     const creatorId = String(card.creator_id || "").trim();
-    const creatorHandle = cleanHandle(card.creator_handle).toLowerCase();
+    const creatorHandle = normalizeHandle(card.creator_handle);
     if (idKey && creatorId && creatorId === idKey) return true;
     return Boolean(handleKey && creatorHandle === handleKey);
   });
@@ -193,15 +197,16 @@ function GridPanel({
   const router = useRouter();
 
   function resolveAvatar(card: CardItem) {
-    const stored = String(card.creator_avatar || "").trim();
-    if (stored) return stored;
     const creatorId = String(card.creator_id || "").trim();
-    const creatorHandle = cleanHandle(card.creator_handle).toLowerCase();
-    const username = cleanHandle(currentUsername || "").toLowerCase();
+    const creatorHandle = normalizeHandle(card.creator_handle);
+    const username = normalizeHandle(currentUsername || "");
     const isMine =
       (currentUserId && creatorId && currentUserId === creatorId) ||
       (creatorHandle && username && creatorHandle === username);
-    return isMine ? String(currentUserImage || "").trim() : "";
+    if (isMine) {
+      return String(currentUserImage || "").trim();
+    }
+    return String(card.creator_avatar || "").trim();
   }
 
   return (

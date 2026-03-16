@@ -113,6 +113,10 @@ function cleanHandle(handle?: string) {
   return String(handle || "").trim().replace(/^@+/, "");
 }
 
+function normalizeHandle(handle?: string) {
+  return cleanHandle(handle).toLowerCase();
+}
+
 function fallbackLetter(handle?: string, name?: string) {
   const source = cleanHandle(handle) || String(name || "").trim();
   return source ? source.charAt(0).toUpperCase() : "U";
@@ -303,18 +307,26 @@ export default function PersonaFeed() {
   function isOwnedByCurrentUser(card?: Card) {
     if (!card || !user) return false;
     const creatorId = String(card.creator_id || "").trim();
-    const creatorHandle = cleanHandle(card.creator_handle).toLowerCase();
-    const username = cleanHandle(user.username || "").toLowerCase();
+    const creatorHandle = normalizeHandle(card.creator_handle);
+    const username = normalizeHandle(user.username || "");
     if (creatorId && creatorId === user.id) return true;
     if (creatorHandle && username && creatorHandle === username) return true;
     return false;
+  }
+
+  function resolveCreatorAvatar(card?: Card) {
+    if (!card) return "";
+    if (isOwnedByCurrentUser(card)) {
+      return String(user?.imageUrl || "").trim();
+    }
+    return String(card.creator_avatar || "").trim();
   }
 
   useEffect(() => {
     if (!isSignedIn || !user) return;
     const avatar = String(user.imageUrl || "").trim();
     if (!avatar) return;
-    const username = cleanHandle(user.username || "").toLowerCase();
+    const username = normalizeHandle(user.username || "");
     const userId = String(user.id || "").trim();
     if (!username && !userId) return;
 
@@ -327,14 +339,14 @@ export default function PersonaFeed() {
         if (!entry || typeof entry !== "object") return entry;
         const obj = entry as Record<string, unknown>;
         const creatorId = String(obj.creator_id || "").trim();
-        const creatorHandle = cleanHandle(String(obj.creator_handle || "")).toLowerCase();
+        const creatorHandle = normalizeHandle(String(obj.creator_handle || ""));
         const isMine =
           (creatorId && userId && creatorId === userId) ||
           (creatorHandle && username && creatorHandle === username);
         if (!isMine) return entry;
 
         const next: Record<string, unknown> = { ...obj };
-        if (!String(obj.creator_avatar || "").trim()) {
+        if (String(obj.creator_avatar || "").trim() !== avatar) {
           next.creator_avatar = avatar;
           changed = true;
         }
@@ -998,9 +1010,9 @@ export default function PersonaFeed() {
                   <div className="mt-1 text-xs text-gray-500" onPointerDown={(e) => e.stopPropagation()}>
                     {active.source === "community" ? (
                       <div className="flex items-center gap-2">
-                        {active.creator_avatar || (isOwnedByCurrentUser(active) ? String(user?.imageUrl || "").trim() : "") ? (
+                        {resolveCreatorAvatar(active) ? (
                           <img
-                            src={active.creator_avatar || String(user?.imageUrl || "").trim()}
+                            src={resolveCreatorAvatar(active)}
                             alt={active.creator_name || active.creator_handle || "Creator avatar"}
                             className="w-7 h-7 rounded-full object-cover"
                           />

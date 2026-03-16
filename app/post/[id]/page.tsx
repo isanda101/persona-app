@@ -113,6 +113,10 @@ function cleanHandle(handle?: string) {
   return String(handle || "").trim().replace(/^@+/, "");
 }
 
+function normalizeHandle(handle?: string) {
+  return cleanHandle(handle).toLowerCase();
+}
+
 function formatHandle(handle?: string) {
   const clean = cleanHandle(handle);
   return clean ? `@${clean}` : "";
@@ -139,6 +143,7 @@ export default function PostDetailPage() {
   const [commentText, setCommentText] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const username = String(user?.username || "").trim().replace(/^@+/, "");
+  const currentUserAvatar = String(user?.imageUrl || "").trim();
 
   const post = useMemo(() => {
     if (!postId || typeof window === "undefined") return null;
@@ -270,8 +275,8 @@ export default function PostDetailPage() {
       user?.username ||
       "Persona User"
     ).trim();
-    const authorHandle = `@${username}`;
-    const authorAvatar = String(user?.imageUrl || "").trim();
+      const authorHandle = `@${username}`;
+    const authorAvatar = currentUserAvatar;
     const authorId = String(user?.id || "").trim();
 
     const comment: PersonaComment = {
@@ -344,10 +349,10 @@ export default function PostDetailPage() {
   const isCurrentUserCreator = Boolean(
     user &&
       ((post.creator_id && post.creator_id === user.id) ||
-        (creatorHandle && creatorHandle.toLowerCase() === String(user.username || "").toLowerCase())),
+        (creatorHandle && creatorHandle.toLowerCase() === normalizeHandle(user.username || ""))),
   );
   const creatorAvatarSrc = String(
-    post.creator_avatar || (isCurrentUserCreator ? user?.imageUrl || "" : ""),
+    isCurrentUserCreator ? currentUserAvatar : post.creator_avatar || "",
   ).trim();
   const visibleTags = prioritizeUploadTags(sanitizeContentTags(post.tags, 12), 12);
 
@@ -563,10 +568,10 @@ export default function PostDetailPage() {
                         user &&
                           ((comment.author_id && comment.author_id === user.id) ||
                             (commentHandle &&
-                              commentHandle.toLowerCase() === String(user.username || "").toLowerCase())),
+                              commentHandle.toLowerCase() === normalizeHandle(user.username || ""))),
                       );
                       const commentAvatar = String(
-                        comment.author_avatar || (isOwnComment ? user?.imageUrl || "" : ""),
+                        isOwnComment ? currentUserAvatar : comment.author_avatar || "",
                       ).trim();
                       return (
                     <div className="flex items-start justify-between gap-3">
