@@ -1,5 +1,6 @@
 export type PersonaComment = {
   id: string;
+  post_id?: string;
   author_name: string;
   author_handle: string;
   author_avatar?: string;
@@ -33,6 +34,33 @@ function isOwnedBy(comment: PersonaComment, owner?: CommentOwner) {
   return false;
 }
 
+export function normalizeComment(value: unknown): PersonaComment | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const id = String(obj.id || "").trim();
+  const text = String(obj.text || "").trim();
+  if (!id || !text) return null;
+
+  const rawCreatedAt = obj.created_at;
+  const createdAt =
+    typeof rawCreatedAt === "number"
+      ? rawCreatedAt
+      : typeof rawCreatedAt === "string"
+        ? Date.parse(rawCreatedAt) || 0
+        : 0;
+
+  return {
+    id,
+    post_id: String(obj.post_id || "").trim() || undefined,
+    author_name: String(obj.author_name || "").trim(),
+    author_handle: String(obj.author_handle || "").trim(),
+    author_avatar: String(obj.author_avatar || "").trim() || undefined,
+    author_id: String(obj.author_id || "").trim() || undefined,
+    text,
+    created_at: createdAt,
+  };
+}
+
 export function readComments(): CommentsMap {
   if (typeof window === "undefined") return {};
   try {
@@ -44,18 +72,7 @@ export function readComments(): CommentsMap {
     for (const [postId, value] of Object.entries(parsed as Record<string, unknown>)) {
       if (!postId.trim() || !Array.isArray(value)) continue;
       out[postId] = value
-        .map((item) => {
-          const obj = item as Record<string, unknown>;
-          return {
-            id: String(obj.id || "").trim(),
-            author_name: String(obj.author_name || "").trim(),
-            author_handle: String(obj.author_handle || "").trim(),
-            author_avatar: String(obj.author_avatar || "").trim() || undefined,
-            author_id: String(obj.author_id || "").trim() || undefined,
-            text: String(obj.text || "").trim(),
-            created_at: Number(obj.created_at) || 0,
-          };
-        })
+        .map((item) => normalizeComment(item))
         .filter((item) => item.id && item.text);
     }
     return out;

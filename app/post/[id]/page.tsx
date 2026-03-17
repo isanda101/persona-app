@@ -11,7 +11,7 @@ import {
   writeEngagement,
   type EngagementMap,
 } from "@/lib/engagement";
-import { addComment, getComments, removeComment, type PersonaComment } from "@/lib/comments";
+import { normalizeComment, type PersonaComment } from "@/lib/comments";
 import { supabase } from "@/lib/supabase";
 import { prioritizeUploadTags, sanitizeContentTags, slugifyTag } from "@/lib/tags";
 
@@ -140,7 +140,9 @@ export default function PostDetailPage() {
     readCardsFromKey("persona:saved").map((card) => card.id),
   );
   const [engagement, setEngagement] = useState<EngagementMap>(() => readEngagement());
-  const [comments, setComments] = useState<PersonaComment[]>(() => getComments(postId));
+  const [comments, setComments] = useState<PersonaComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [remotePost, setRemotePost] = useState<CardItem | null>(null);
@@ -214,6 +216,62 @@ export default function PostDetailPage() {
       cancelled = true;
     };
   }, [localPost, postId]);
+
+  useEffect(() => {
+    if (!post?.id) {
+      Promise.resolve().then(() => {
+        setComments([]);
+        setIsLoadingComments(false);
+        setCommentsError(null);
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadComments() {
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setIsLoadingComments(true);
+        setCommentsError(null);
+      });
+
+      const { data, error } = await supabase
+        .from("comments")
+        .select("*")
+        .eq("post_id", post.id)
+        .order("created_at", { ascending: true });
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Supabase comments fetch error:", error);
+        setComments([]);
+        setCommentsError("Could not load comments.");
+        setIsLoadingComments(false);
+        return;
+      }
+
+      const nextComments = Array.isArray(data)
+        ? data.map((item) => normalizeComment(item)).filter((item): item is PersonaComment => Boolean(item))
+        : [];
+
+      setComments(nextComments);
+      setIsLoadingComments(false);
+    }
+
+    loadComments().catch((error) => {
+      if (cancelled) return;
+      console.error("Failed to fetch Supabase comments", error);
+      setComments([]);
+      setCommentsError("Could not load comments.");
+      setIsLoadingComments(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [post?.id]);
 
   const shouldShowNotFound = !post && (hasCheckedRemotePost || (!postId || Boolean(localPost)));
 
@@ -320,7 +378,7 @@ export default function PostDetailPage() {
     return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
-  function handleSubmitComment() {
+  async function handleSubmitComment() {
     if (!post || !isSignedIn) return;
     if (!username) return;
     const text = commentText.trim();
@@ -331,12 +389,13 @@ export default function PostDetailPage() {
       user?.username ||
       "Persona User"
     ).trim();
-      const authorHandle = `@${username}`;
+    const authorHandle = `@${username}`;
     const authorAvatar = currentUserAvatar;
     const authorId = String(user?.id || "").trim();
 
     const comment: PersonaComment = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: crypto.randomUUID(),
+      post_id: post.id,
       author_name: authorName,
       author_handle: authorHandle,
       author_avatar: authorAvatar || undefined,
@@ -345,9 +404,29 @@ export default function PostDetailPage() {
       created_at: Date.now(),
     };
 
-    const nextComments = addComment(post.id, comment);
-    setComments(nextComments);
+    const newComment = {
+      id: comment.id,
+      post_id: post.id,
+      author_id: user?.id || "",
+      author_handle: user?.username || "user",
+      author_name: user?.fullName || "",
+      author_avatar: user?.imageUrl || "",
+      text,
+    };
+
+    const { error } = await supabase
+      .from("comments")
+      .insert(newComment);
+
+    if (error) {
+      console.error("Supabase comment insert error:", error);
+      setCommentsError("Could not post comment.");
+      return;
+    }
+
+    setComments((prev) => [...prev, comment]);
     setCommentText("");
+    setCommentsError(null);
     setEngagement((prevEngagement) => {
       const current = getEngagement(post.id, prevEngagement);
       const nextCounts = {
@@ -360,17 +439,31 @@ export default function PostDetailPage() {
     });
   }
 
-  function handleDeleteComment(comment: PersonaComment) {
+  async function handleDeleteComment(comment: PersonaComment) {
     if (!post || !user) return;
 
-    const nextComments = removeComment(post.id, comment.id, {
-      author_id: user.id,
-      author_handle: user.username || "",
-    });
+    const commentHandle = cleanHandle(comment.author_handle);
+    const isOwnComment = Boolean(
+      (comment.author_id && comment.author_id === user.id) ||
+        (commentHandle && commentHandle.toLowerCase() === normalizeHandle(user.username || "")),
+    );
+    if (!isOwnComment) return;
 
-    if (nextComments.length === comments.length) return;
+    const { error } = await supabase
+      .from("comments")
+      .delete()
+      .eq("id", comment.id);
+
+    if (error) {
+      console.error("Supabase comment delete error:", error);
+      setCommentsError("Could not delete comment.");
+      return;
+    }
+
+    const nextComments = comments.filter((entry) => entry.id !== comment.id);
 
     setComments(nextComments);
+    setCommentsError(null);
     setEngagement((prevEngagement) => {
       const current = getEngagement(post.id, prevEngagement);
       const nextCounts = {
@@ -590,6 +683,9 @@ export default function PostDetailPage() {
 
             <div id={`comments-${post.id}`} className="mt-6 border-t border-gray-200 pt-4">
               <div className="text-sm font-medium text-gray-700">Comments</div>
+              {commentsError ? (
+                <div className="mt-2 text-sm text-red-600">{commentsError}</div>
+              ) : null}
 
               {isSignedIn ? (
                 <div className="mt-3">
@@ -643,6 +739,9 @@ export default function PostDetailPage() {
               )}
 
               <div className="mt-4 space-y-3">
+                {isLoadingComments ? (
+                  <div className="text-sm text-gray-500">Loading comments...</div>
+                ) : null}
                 {comments.length ? comments.map((comment) => (
                   <div key={comment.id} className="rounded-lg border border-gray-100 bg-gray-50 p-3">
                     {(() => {
@@ -699,9 +798,9 @@ export default function PostDetailPage() {
                     })()}
                     <div className="mt-1 text-sm text-gray-800 whitespace-pre-wrap">{comment.text}</div>
                   </div>
-                )) : (
+                )) : !isLoadingComments ? (
                   <div className="text-sm text-gray-500">No comments yet.</div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
