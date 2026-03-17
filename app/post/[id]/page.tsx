@@ -137,13 +137,14 @@ export default function PostDetailPage() {
   const [savedIds, setSavedIds] = useState<string[]>(() =>
     readCardsFromKey("persona:saved").map((card) => card.id),
   );
-  const [engagement, setEngagement] = useState<EngagementMap>(() => readEngagement());
+  const [, setEngagement] = useState<EngagementMap>(() => readEngagement());
   const [comments, setComments] = useState<PersonaComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [remotePost, setRemotePost] = useState<CardItem | null>(null);
+  const [postOverride, setPostOverride] = useState<{ postId: string; data: Partial<CardItem> } | null>(null);
   const [isLoadingRemotePost, setIsLoadingRemotePost] = useState(false);
   const username = String(user?.username || "").trim().replace(/^@+/, "");
   const currentUserAvatar = String(user?.imageUrl || "").trim();
@@ -159,10 +160,17 @@ export default function PostDetailPage() {
     const pool = [...uploads, ...collection, ...saved, ...feedCache];
     return pool.find((card) => card.id === postId) || null;
   }, [postId]);
-  const post = localPost || (remotePost?.id === postId ? remotePost : null);
-  const postEngagement = useMemo(
-    () => (post?.id ? getEngagement(post.id, engagement) : getEngagement("")),
-    [post, engagement],
+  const basePost = localPost || (remotePost?.id === postId ? remotePost : null);
+  const post = useMemo(
+    () => (
+      basePost
+        ? {
+          ...basePost,
+          ...(postOverride?.postId === basePost.id ? postOverride.data : {}),
+        }
+        : null
+    ),
+    [basePost, postOverride],
   );
 
   useEffect(() => {
@@ -341,6 +349,16 @@ export default function PostDetailPage() {
     }
 
     setLikes(!wasLiked ? { [post.id]: true } : {});
+    const nextLikesCount = wasLiked
+      ? Math.max(0, Number(post.likes_count ?? 0) - 1)
+      : Number(post.likes_count ?? 0) + 1;
+    setPostOverride({
+      postId: post.id,
+      data: {
+        ...(postOverride?.postId === post.id ? postOverride.data : {}),
+        likes_count: nextLikesCount,
+      },
+    });
     setEngagement((prevEngagement) => {
       const current = getEngagement(post.id, prevEngagement);
       const nextCounts = {
@@ -353,6 +371,17 @@ export default function PostDetailPage() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    const { error: counterError } = await supabase
+      .from("posts")
+      .update({
+        likes_count: nextLikesCount,
+      })
+      .eq("id", post.id);
+
+    if (counterError) {
+      console.error("Supabase like counter update error:", counterError);
+    }
   }
 
   async function handleShare() {
@@ -394,6 +423,16 @@ export default function PostDetailPage() {
 
     localStorage.setItem("persona:saved", JSON.stringify(next));
     setSavedIds(next.map((card) => card.id));
+    const nextCollectionsCount = exists
+      ? Math.max(0, Number(post.collections_count ?? 0) - 1)
+      : Number(post.collections_count ?? 0) + 1;
+    setPostOverride({
+      postId: post.id,
+      data: {
+        ...(postOverride?.postId === post.id ? postOverride.data : {}),
+        collections_count: nextCollectionsCount,
+      },
+    });
     setEngagement((prevEngagement) => {
       const current = getEngagement(post.id, prevEngagement);
       const nextCounts = {
@@ -406,6 +445,18 @@ export default function PostDetailPage() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    supabase
+      .from("posts")
+      .update({
+        collections_count: nextCollectionsCount,
+      })
+      .eq("id", post.id)
+      .then(({ error }) => {
+        if (error) {
+          console.error("Supabase collection counter update error:", error);
+        }
+      });
   }
 
   function formatCommentTimestamp(createdAt: number) {
@@ -463,6 +514,14 @@ export default function PostDetailPage() {
     setComments((prev) => [...prev, comment]);
     setCommentText("");
     setCommentsError(null);
+    const nextCommentsCount = Number(post.comments_count ?? 0) + 1;
+    setPostOverride({
+      postId: post.id,
+      data: {
+        ...(postOverride?.postId === post.id ? postOverride.data : {}),
+        comments_count: nextCommentsCount,
+      },
+    });
     setEngagement((prevEngagement) => {
       const current = getEngagement(post.id, prevEngagement);
       const nextCounts = {
@@ -473,6 +532,17 @@ export default function PostDetailPage() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    const { error: counterError } = await supabase
+      .from("posts")
+      .update({
+        comments_count: nextCommentsCount,
+      })
+      .eq("id", post.id);
+
+    if (counterError) {
+      console.error("Supabase comment counter update error:", counterError);
+    }
   }
 
   async function handleDeleteComment(comment: PersonaComment) {
@@ -500,6 +570,14 @@ export default function PostDetailPage() {
 
     setComments(nextComments);
     setCommentsError(null);
+    const nextCommentsCount = Math.max(0, Number(post.comments_count ?? 0) - 1);
+    setPostOverride({
+      postId: post.id,
+      data: {
+        ...(postOverride?.postId === post.id ? postOverride.data : {}),
+        comments_count: nextCommentsCount,
+      },
+    });
     setEngagement((prevEngagement) => {
       const current = getEngagement(post.id, prevEngagement);
       const nextCounts = {
@@ -510,6 +588,17 @@ export default function PostDetailPage() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    const { error: counterError } = await supabase
+      .from("posts")
+      .update({
+        comments_count: nextCommentsCount,
+      })
+      .eq("id", post.id);
+
+    if (counterError) {
+      console.error("Supabase comment counter update error:", counterError);
+    }
   }
 
   if (!post && isLoadingRemotePost) {
@@ -668,8 +757,8 @@ export default function PostDetailPage() {
               </button>
             </div>
             <div className="mt-2 text-xs text-gray-500">
-              ♥ {postEngagement.likes_count} &nbsp; 💬 {postEngagement.comments_count}
-              &nbsp; 🔖 {postEngagement.collections_count}
+              ♥ {post.likes_count ?? 0} &nbsp; 💬 {post.comments_count ?? 0}
+              &nbsp; 🔖 {post.collections_count ?? 0}
             </div>
 
             {actionMessage ? (

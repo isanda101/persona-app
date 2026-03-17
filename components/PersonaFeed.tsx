@@ -207,7 +207,7 @@ export default function PersonaFeed() {
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [engagement, setEngagement] = useState<EngagementMap>({});
+  const [, setEngagement] = useState<EngagementMap>({});
   const [followedTags, setFollowedTags] = useState<string[]>([]);
   const loadingMoreRef = useRef(false);
   const heartBurstTimerRef = useRef<number | null>(null);
@@ -240,10 +240,6 @@ export default function PersonaFeed() {
 
     return "From your adjacent tastes";
   }, [active, dna]);
-  const activeEngagement = useMemo(
-    () => (active?.id ? getEngagement(active.id, engagement) : getEngagement("")),
-    [active, engagement],
-  );
   const displayTags = useMemo(
     () => prioritizeUploadTags(sanitizeContentTags(Array.isArray(active?.tags) ? active.tags : [], 8), 8),
     [active],
@@ -370,6 +366,14 @@ export default function PersonaFeed() {
   useEffect(() => {
     cardsRef.current = cards;
   }, [cards]);
+
+  function updateCardCounts(cardId: string, updates: Partial<Pick<Card, "likes_count" | "comments_count" | "collections_count">>) {
+    setCards((prev) => prev.map((card) => (
+      card.id === cardId
+        ? { ...card, ...updates }
+        : card
+    )));
+  }
 
   function isOwnedByCurrentUser(card?: Card) {
     if (!card || !user) return false;
@@ -760,6 +764,10 @@ export default function PersonaFeed() {
 
     writeJSON("persona:saved", nextSaved);
     setSavedIds(nextSaved.map((c) => c.id));
+    const nextCollectionsCount = exists
+      ? Math.max(0, Number(card.collections_count ?? 0) - 1)
+      : Number(card.collections_count ?? 0) + 1;
+    updateCardCounts(card.id, { collections_count: nextCollectionsCount });
     setEngagement((prevEngagement) => {
       const current = getEngagement(card.id, prevEngagement);
       const nextCounts = {
@@ -772,6 +780,17 @@ export default function PersonaFeed() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    const { error } = await supabase
+      .from("posts")
+      .update({
+        collections_count: nextCollectionsCount,
+      })
+      .eq("id", card.id);
+
+    if (error) {
+      console.error("Supabase collection counter update error:", error);
+    }
 
     // Small toast instead of alert
     setToast(exists ? "Removed from collection" : "Collected");
@@ -827,6 +846,10 @@ export default function PersonaFeed() {
     }
 
     setIsLiked(!wasLiked);
+    const nextLikesCount = wasLiked
+      ? Math.max(0, Number(card.likes_count ?? 0) - 1)
+      : Number(card.likes_count ?? 0) + 1;
+    updateCardCounts(card.id, { likes_count: nextLikesCount });
     setEngagement((prevEngagement) => {
       const current = getEngagement(card.id, prevEngagement);
       const nextCounts = {
@@ -839,6 +862,17 @@ export default function PersonaFeed() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    const { error: counterError } = await supabase
+      .from("posts")
+      .update({
+        likes_count: nextLikesCount,
+      })
+      .eq("id", card.id);
+
+    if (counterError) {
+      console.error("Supabase like counter update error:", counterError);
+    }
   }
 
   async function likeCard(card: Card) {
@@ -866,6 +900,8 @@ export default function PersonaFeed() {
     }
 
     setIsLiked(true);
+    const nextLikesCount = Number(card.likes_count ?? 0) + 1;
+    updateCardCounts(card.id, { likes_count: nextLikesCount });
     setEngagement((prevEngagement) => {
       const current = getEngagement(card.id, prevEngagement);
       const nextCounts = {
@@ -876,6 +912,17 @@ export default function PersonaFeed() {
       writeEngagement(nextEngagement);
       return nextEngagement;
     });
+
+    const { error: counterError } = await supabase
+      .from("posts")
+      .update({
+        likes_count: nextLikesCount,
+      })
+      .eq("id", card.id);
+
+    if (counterError) {
+      console.error("Supabase like counter update error:", counterError);
+    }
   }
 
   function handleImageDoubleTap(card: Card) {
@@ -1255,7 +1302,7 @@ export default function PersonaFeed() {
                       >
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z" />
                       </svg>
-                      <span className="text-xs text-gray-600">{activeEngagement.likes_count}</span>
+                      <span className="text-xs text-gray-600">{active?.likes_count ?? 0}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -1276,7 +1323,7 @@ export default function PersonaFeed() {
                       >
                         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
                       </svg>
-                      <span className="text-xs text-gray-600">{activeEngagement.comments_count}</span>
+                      <span className="text-xs text-gray-600">{active?.comments_count ?? 0}</span>
                     </button>
                     <button
                       onClick={handleShare}
@@ -1318,7 +1365,7 @@ export default function PersonaFeed() {
                       >
                         <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z" />
                       </svg>
-                      <span className="text-xs text-gray-600">{activeEngagement.collections_count}</span>
+                      <span className="text-xs text-gray-600">{active?.collections_count ?? 0}</span>
                     </button>
                   </div>
 
