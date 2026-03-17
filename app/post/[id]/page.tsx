@@ -202,7 +202,28 @@ export default function PostDetailPage() {
       }
 
       const normalized = normalizeCard(data);
-      setRemotePost(normalized ? { ...normalized, source: "community" } : null);
+      if (!normalized) {
+        setRemotePost(null);
+        setIsLoadingRemotePost(false);
+        return;
+      }
+
+      const { count, error: countError } = await supabase
+        .from("likes")
+        .select("*", { count: "exact", head: true })
+        .eq("post_id", normalized.id);
+
+      if (cancelled) return;
+
+      if (countError) {
+        console.error("Supabase likes count fetch error:", countError);
+      }
+
+      setRemotePost({
+        ...normalized,
+        source: "community",
+        likes_count: count ?? 0,
+      });
       setIsLoadingRemotePost(false);
     }
 

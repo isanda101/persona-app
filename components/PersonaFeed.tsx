@@ -181,8 +181,54 @@ function normalizeSupabasePost(value: unknown): Card | null {
     creator_handle: String(obj.creator_handle || "").trim() || undefined,
     creator_avatar: String(obj.creator_avatar || "").trim() || undefined,
     creator_id: String(obj.creator_id || "").trim() || undefined,
+    likes_count: Math.max(0, Number(obj.likes_count) || 0),
+    comments_count: Math.max(0, Number(obj.comments_count) || 0),
+    collections_count: Math.max(0, Number(obj.collections_count) || 0),
     source: "community",
   };
+}
+
+async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
+  try {
+    const { data, error } = await supabase
+      .from("posts")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      console.error("Supabase posts fetch error:", error);
+      return [];
+    }
+
+    if (!Array.isArray(data)) return [];
+
+    const communityPosts = await Promise.all(
+      data.map(async (item) => {
+        const normalized = normalizeSupabasePost(item);
+        if (!normalized) return null;
+
+        const { count, error: countError } = await supabase
+          .from("likes")
+          .select("*", { count: "exact", head: true })
+          .eq("post_id", normalized.id);
+
+        if (countError) {
+          console.error("Supabase likes count fetch error:", countError);
+        }
+
+        return {
+          ...normalized,
+          likes_count: count ?? 0,
+        };
+      }),
+    );
+
+    return communityPosts.filter((item): item is Card => Boolean(item));
+  } catch (error) {
+    console.error("Failed to fetch Supabase posts", error);
+    return [];
+  }
 }
 
 export default function PersonaFeed() {
@@ -668,24 +714,7 @@ export default function PersonaFeed() {
       const savedAll = readJSON<Card[]>("persona:saved", []);
       setSavedIds(savedAll.map((c) => c.id));
 
-      let communityPosts: Card[] = [];
-      try {
-        const { data, error } = await supabase
-          .from("posts")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(20);
-
-        if (error) {
-          console.error("Supabase posts fetch error:", error);
-        } else if (Array.isArray(data)) {
-          communityPosts = data
-            .map((item) => normalizeSupabasePost(item))
-            .filter((item): item is Card => Boolean(item));
-        }
-      } catch (error) {
-        console.error("Failed to fetch Supabase posts", error);
-      }
+      const communityPosts = await fetchCommunityPostsFromSupabase(20);
 
       const uploads = readStoredCards<Card>("persona:uploads");
       const cached = readStoredCards<Card>("persona:feed_cache");
@@ -718,25 +747,7 @@ export default function PersonaFeed() {
     setIsLoading(true);
     const savedAll = readJSON<Card[]>("persona:saved", []);
     setSavedIds(savedAll.map((c) => c.id));
-
-    let communityPosts: Card[] = [];
-    try {
-      const { data, error } = await supabase
-        .from("posts")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error("Supabase posts fetch error:", error);
-      } else if (Array.isArray(data)) {
-        communityPosts = data
-          .map((item) => normalizeSupabasePost(item))
-          .filter((item): item is Card => Boolean(item));
-      }
-    } catch (error) {
-      console.error("Failed to fetch Supabase posts", error);
-    }
+    const communityPosts = await fetchCommunityPostsFromSupabase(20);
 
     try {
       await fetchBatch(0, "replace", savedAll, { communityPosts });
