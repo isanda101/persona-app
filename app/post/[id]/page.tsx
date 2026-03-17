@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
@@ -12,6 +12,7 @@ import {
   type EngagementMap,
 } from "@/lib/engagement";
 import { addComment, getComments, removeComment, type PersonaComment } from "@/lib/comments";
+import { supabase } from "@/lib/supabase";
 import { prioritizeUploadTags, sanitizeContentTags, slugifyTag } from "@/lib/tags";
 
 type CardItem = {
@@ -142,10 +143,13 @@ export default function PostDetailPage() {
   const [comments, setComments] = useState<PersonaComment[]>(() => getComments(postId));
   const [commentText, setCommentText] = useState("");
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const [remotePost, setRemotePost] = useState<CardItem | null>(null);
+  const [isLoadingRemotePost, setIsLoadingRemotePost] = useState(false);
+  const [hasCheckedRemotePost, setHasCheckedRemotePost] = useState(false);
   const username = String(user?.username || "").trim().replace(/^@+/, "");
   const currentUserAvatar = String(user?.imageUrl || "").trim();
 
-  const post = useMemo(() => {
+  const localPost = useMemo(() => {
     if (!postId || typeof window === "undefined") return null;
 
     const uploads = readCardsFromKey("persona:uploads");
@@ -156,10 +160,62 @@ export default function PostDetailPage() {
     const pool = [...uploads, ...collection, ...saved, ...feedCache];
     return pool.find((card) => card.id === postId) || null;
   }, [postId]);
+  const post = localPost || (remotePost?.id === postId ? remotePost : null);
   const postEngagement = useMemo(
     () => (post?.id ? getEngagement(post.id, engagement) : getEngagement("")),
     [post, engagement],
   );
+
+  useEffect(() => {
+    if (!postId || localPost) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadRemotePost() {
+      Promise.resolve().then(() => {
+        if (cancelled) return;
+        setIsLoadingRemotePost(true);
+        setHasCheckedRemotePost(false);
+      });
+
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("id", postId)
+        .single();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Supabase post fetch error:", error);
+        setRemotePost(null);
+        setIsLoadingRemotePost(false);
+        setHasCheckedRemotePost(true);
+        return;
+      }
+
+      const normalized = normalizeCard(data);
+      setRemotePost(normalized ? { ...normalized, source: "community" } : null);
+      setIsLoadingRemotePost(false);
+      setHasCheckedRemotePost(true);
+    }
+
+    loadRemotePost().catch((error) => {
+      if (cancelled) return;
+      console.error("Failed to fetch Supabase post", error);
+      setRemotePost(null);
+      setIsLoadingRemotePost(false);
+      setHasCheckedRemotePost(true);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localPost, postId]);
+
+  const shouldShowNotFound = !post && (hasCheckedRemotePost || (!postId || Boolean(localPost)));
 
   function showActionMessage(message: string) {
     setActionMessage(message);
@@ -327,7 +383,19 @@ export default function PostDetailPage() {
     });
   }
 
-  if (!post) {
+  if (!post && isLoadingRemotePost) {
+    return (
+      <div className="min-h-screen bg-white text-black px-5 py-8">
+        <div className="max-w-2xl mx-auto">
+          <PersonaHeader showBack />
+          <h1 className="text-2xl font-semibold">Post</h1>
+          <div className="mt-4 text-gray-600">Loading post...</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (shouldShowNotFound) {
     return (
       <div className="min-h-screen bg-white text-black px-5 py-8">
         <div className="max-w-2xl mx-auto">
