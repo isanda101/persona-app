@@ -203,7 +203,7 @@ async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
 
     if (!Array.isArray(data)) return [];
 
-    const communityPosts = await Promise.all(
+    const communityPosts: (Card | null)[] = await Promise.all(
       data.map(async (item) => {
         const normalized = normalizeSupabasePost(item);
         if (!normalized) return null;
@@ -224,7 +224,11 @@ async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
       }),
     );
 
-    return communityPosts.filter((item): item is Card => Boolean(item));
+    const filteredCommunityPosts: Card[] = communityPosts.filter(
+      (item): item is Card => item !== null,
+    );
+
+    return filteredCommunityPosts;
   } catch (error) {
     console.error("Failed to fetch Supabase posts", error);
     return [];
