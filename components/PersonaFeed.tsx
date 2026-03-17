@@ -13,6 +13,7 @@ import {
   type EngagementMap,
 } from "@/lib/engagement";
 import {
+  fetchFollowedTagsForUser,
   isTagFollowed,
   readFollowedTags,
 } from "@/lib/followedTags";
@@ -358,13 +359,14 @@ export default function PersonaFeed() {
 
   useEffect(() => {
     setEngagement(readEngagement());
-    setFollowedTags(readFollowedTags());
   }, []);
 
   useEffect(() => {
     function refreshEngagementFromStorage() {
       setEngagement(readEngagement());
-      setFollowedTags(readFollowedTags());
+      if (!isSignedIn || !user?.id) {
+        setFollowedTags(readFollowedTags());
+      }
     }
 
     window.addEventListener("focus", refreshEngagementFromStorage);
@@ -373,7 +375,31 @@ export default function PersonaFeed() {
       window.removeEventListener("focus", refreshEngagementFromStorage);
       document.removeEventListener("visibilitychange", refreshEngagementFromStorage);
     };
-  }, []);
+  }, [isSignedIn, user?.id]);
+
+  useEffect(() => {
+    if (!isSignedIn || !user?.id) {
+      setFollowedTags(readFollowedTags());
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchFollowedTagsForUser(user.id)
+      .then((tags) => {
+        if (cancelled) return;
+        setFollowedTags(tags);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to fetch followed tags", error);
+        setFollowedTags(readFollowedTags());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, user?.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -629,7 +655,7 @@ export default function PersonaFeed() {
     options?: { limit?: number; communityPosts?: Card[] },
   ) {
     const storedTasteTags = readJSON<string[]>("persona:taste", []);
-    const followed = readFollowedTags();
+    const followed = isSignedIn && user?.id ? followedTags : readFollowedTags();
     const tastes = Array.from(
       new Map(
         [...storedTasteTags, ...followed]

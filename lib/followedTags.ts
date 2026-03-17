@@ -1,4 +1,5 @@
 import { normalizeTag } from "@/lib/tags";
+import { supabase } from "@/lib/supabase";
 
 const FOLLOWED_TAGS_KEY = "persona:followed_tags";
 
@@ -36,6 +37,27 @@ export function writeFollowedTags(tags: string[]): string[] {
   return next;
 }
 
+export async function fetchFollowedTagsForUser(userId: string): Promise<string[]> {
+  const id = String(userId || "").trim();
+  if (!id) return [];
+
+  const { data, error } = await supabase
+    .from("followed_tags")
+    .select("*")
+    .eq("user_id", id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    throw error;
+  }
+
+  const tags = Array.isArray(data)
+    ? data.map((item) => String((item as { tag?: string }).tag || "")).filter(Boolean)
+    : [];
+
+  return writeFollowedTags(tags);
+}
+
 export function isTagFollowed(tag: string, followedTags?: string[]): boolean {
   const key = normalizeTag(tag);
   if (!key) return false;
@@ -55,4 +77,46 @@ export function toggleFollowedTag(tag: string): { tags: string[]; followed: bool
     : [value, ...current];
   const written = writeFollowedTags(next);
   return { tags: written, followed: !exists };
+}
+
+export async function toggleFollowedTagForUser(
+  userId: string,
+  tag: string,
+): Promise<{ tags: string[]; followed: boolean }> {
+  const id = String(userId || "").trim();
+  const key = normalizeTag(tag);
+  if (!id || !key) {
+    return { tags: readFollowedTags(), followed: false };
+  }
+
+  const current = readFollowedTags();
+  const exists = current.some((item) => normalizeTag(item) === key);
+
+  const request = exists
+    ? supabase
+      .from("followed_tags")
+      .delete()
+      .eq("user_id", id)
+      .eq("tag", key)
+    : supabase
+      .from("followed_tags")
+      .insert({
+        id: crypto.randomUUID(),
+        user_id: id,
+        tag: key,
+      });
+
+  const { error } = await request;
+  if (error) {
+    throw error;
+  }
+
+  const next = exists
+    ? current.filter((item) => normalizeTag(item) !== key)
+    : [key, ...current];
+
+  return {
+    tags: writeFollowedTags(next),
+    followed: !exists,
+  };
 }

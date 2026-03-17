@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { Bookmark, Grid3X3, Heart } from "lucide-react";
 import PersonaHeader from "@/components/PersonaHeader";
-import { readFollowedTags } from "@/lib/followedTags";
+import { fetchFollowedTagsForUser, readFollowedTags } from "@/lib/followedTags";
 import { supabase } from "@/lib/supabase";
 import { slugifyTag } from "@/lib/tags";
 
@@ -298,7 +298,7 @@ export default function UserHandlePage() {
     setActiveTab(next);
   }, [searchParams]);
 
-  const followedTags = useMemo(() => readFollowedTags(), []);
+  const [followedTags, setFollowedTags] = useState<string[]>(() => readFollowedTags());
 
   const [collectedItems, setCollectedItems] = useState<CardItem[]>(() => readCardArray("persona:saved"));
   const [isLoadingCollected, setIsLoadingCollected] = useState(false);
@@ -317,6 +317,30 @@ export default function UserHandlePage() {
     const likesRaw = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
     return parseLikes(likesRaw).ids;
   });
+
+  useEffect(() => {
+    if (!isOwnProfile || !isSignedIn || !userId) {
+      setFollowedTags(readFollowedTags());
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchFollowedTagsForUser(userId)
+      .then((tags) => {
+        if (cancelled) return;
+        setFollowedTags(tags);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to fetch followed tags", error);
+        setFollowedTags(readFollowedTags());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, isSignedIn, userId]);
 
   useEffect(() => {
     if (!isOwnProfile || !isSignedIn) return;

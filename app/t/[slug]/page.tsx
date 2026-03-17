@@ -2,10 +2,15 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SignInButton, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
-import { isTagFollowed, readFollowedTags, toggleFollowedTag } from "@/lib/followedTags";
+import {
+  fetchFollowedTagsForUser,
+  isTagFollowed,
+  readFollowedTags,
+  toggleFollowedTagForUser,
+} from "@/lib/followedTags";
 import { getRelatedTagsFromCards, normalizeTag, slugifyTag, unslugifyTag } from "@/lib/tags";
 
 type CardItem = {
@@ -77,12 +82,38 @@ function creatorLine(card: CardItem): string {
 }
 
 export default function TagPage() {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
   const params = useParams<{ slug: string }>();
   const slug = String(params?.slug || "").trim();
   const displayTag = unslugifyTag(slug);
   const normalizedTag = normalizeTag(displayTag);
   const [followedTags, setFollowedTags] = useState<string[]>(() => readFollowedTags());
+
+  useEffect(() => {
+    if (!isSignedIn || !user?.id) {
+      Promise.resolve().then(() => {
+        setFollowedTags(readFollowedTags());
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchFollowedTagsForUser(user.id)
+      .then((tags) => {
+        if (cancelled) return;
+        setFollowedTags(tags);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Failed to fetch followed tags", error);
+        setFollowedTags(readFollowedTags());
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, user?.id]);
 
   const uploads = readCardArray("persona:uploads");
   const saved = readCardArray("persona:saved");
@@ -110,9 +141,14 @@ export default function TagPage() {
           {isSignedIn ? (
             <button
               type="button"
-              onClick={() => {
-                const result = toggleFollowedTag(displayTag);
-                setFollowedTags(result.tags);
+              onClick={async () => {
+                if (!user?.id) return;
+                try {
+                  const result = await toggleFollowedTagForUser(user.id, displayTag);
+                  setFollowedTags(result.tags);
+                } catch (error) {
+                  console.error("Failed to toggle followed tag", error);
+                }
               }}
               className={`px-3 py-1.5 rounded-full text-sm border ${
                 following
