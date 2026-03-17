@@ -356,6 +356,48 @@ export default function PersonaFeed() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+
+    async function loadSavedState() {
+      if (!isSignedIn || !user?.id) {
+        const savedAll = readJSON<Card[]>("persona:saved", []);
+        setSavedIds(savedAll.map((card) => card.id));
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("collections")
+        .select("post_id")
+        .eq("user_id", user.id);
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Supabase collections fetch error:", error);
+        const savedAll = readJSON<Card[]>("persona:saved", []);
+        setSavedIds(savedAll.map((card) => card.id));
+        return;
+      }
+
+      const ids = Array.isArray(data)
+        ? data.map((item) => String((item as { post_id?: string }).post_id || "").trim()).filter(Boolean)
+        : [];
+      setSavedIds(ids);
+    }
+
+    loadSavedState().catch((error) => {
+      if (cancelled) return;
+      console.error("Failed to fetch Supabase collections", error);
+      const savedAll = readJSON<Card[]>("persona:saved", []);
+      setSavedIds(savedAll.map((card) => card.id));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, user?.id]);
+
+  useEffect(() => {
     if (!active?.id) {
       setIsLiked(false);
       return;
@@ -769,13 +811,34 @@ export default function PersonaFeed() {
       return;
     }
 
-    const savedAll = readJSON<Card[]>("persona:saved", []);
+    if (!user?.id) return;
 
-    // Same id-based toggle behavior for every card source.
-    const exists = savedAll.some((c) => c.id === card.id);
+    const savedAll = readJSON<Card[]>("persona:saved", []);
+    const exists = savedIds.includes(card.id);
     const nextSaved = exists
       ? savedAll.filter((c) => c.id !== card.id)
-      : [card, ...savedAll];
+      : [card, ...savedAll.filter((c) => c.id !== card.id)];
+
+    const request = exists
+      ? supabase
+        .from("collections")
+        .delete()
+        .eq("post_id", card.id)
+        .eq("user_id", user.id)
+      : supabase
+        .from("collections")
+        .insert({
+          id: crypto.randomUUID(),
+          post_id: card.id,
+          user_id: user.id,
+        });
+
+    const { error: collectionError } = await request;
+
+    if (collectionError) {
+      console.error("Supabase collection toggle error:", collectionError);
+      return;
+    }
 
     writeJSON("persona:saved", nextSaved);
     setSavedIds(nextSaved.map((c) => c.id));

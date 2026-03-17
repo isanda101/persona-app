@@ -326,6 +326,44 @@ export default function PostDetailPage() {
     };
   }, [isSignedIn, post?.id, user?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCollectedState() {
+      if (!post?.id || !isSignedIn || !user?.id) {
+        setSavedIds([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("collections")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Supabase collection fetch error:", error);
+        setSavedIds([]);
+        return;
+      }
+
+      setSavedIds(data?.id ? [post.id] : []);
+    }
+
+    loadCollectedState().catch((error) => {
+      if (cancelled) return;
+      console.error("Failed to fetch Supabase collection", error);
+      setSavedIds([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, post?.id, user?.id]);
+
   function showActionMessage(message: string) {
     setActionMessage(message);
     window.setTimeout(() => setActionMessage(null), 1500);
@@ -430,17 +468,40 @@ export default function PostDetailPage() {
     }
   }
 
-  function toggleCollection() {
+  async function toggleCollection() {
     if (!post) return;
     if (!isSignedIn) {
       redirectToSignIn();
       return;
     }
+    if (!user?.id) return;
+
     const saved = readCardsFromKey("persona:saved");
-    const exists = saved.some((card) => card.id === post.id);
+    const exists = savedIds.includes(post.id);
     const next = exists
       ? saved.filter((card) => card.id !== post.id)
-      : [post, ...saved];
+      : [post, ...saved.filter((card) => card.id !== post.id)];
+
+    const request = exists
+      ? supabase
+        .from("collections")
+        .delete()
+        .eq("post_id", post.id)
+        .eq("user_id", user.id)
+      : supabase
+        .from("collections")
+        .insert({
+          id: crypto.randomUUID(),
+          post_id: post.id,
+          user_id: user.id,
+        });
+
+    const { error: collectionError } = await request;
+
+    if (collectionError) {
+      console.error("Supabase collection toggle error:", collectionError);
+      return;
+    }
 
     localStorage.setItem("persona:saved", JSON.stringify(next));
     setSavedIds(next.map((card) => card.id));

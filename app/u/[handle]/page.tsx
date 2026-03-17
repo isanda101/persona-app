@@ -301,6 +301,8 @@ export default function UserHandlePage() {
   const followedTags = useMemo(() => readFollowedTags(), []);
 
   const [collectedItems, setCollectedItems] = useState<CardItem[]>(() => readCardArray("persona:saved"));
+  const [isLoadingCollected, setIsLoadingCollected] = useState(false);
+  const [collectedError, setCollectedError] = useState<string | null>(null);
   const [postedItems, setPostedItems] = useState<CardItem[]>([]);
   const [isLoadingPosted, setIsLoadingPosted] = useState(false);
   const [postedError, setPostedError] = useState<string | null>(null);
@@ -318,13 +320,98 @@ export default function UserHandlePage() {
 
   useEffect(() => {
     if (!isOwnProfile || !isSignedIn) return;
-    setCollectedItems(readCardArray("persona:saved"));
     const likesRaw = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
     const parsedLikes = parseLikes(likesRaw);
     setLikedIds(parsedLikes.ids);
     setLikedCardCache(parsedLikes.cards);
     setCachedItems(collectCachedCards());
   }, [isOwnProfile, isSignedIn]);
+
+  useEffect(() => {
+    if (!isOwnProfile || !isSignedIn || !userId) {
+      setCollectedItems(readCardArray("persona:saved"));
+      setIsLoadingCollected(false);
+      setCollectedError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadCollectedItems() {
+      setIsLoadingCollected(true);
+      setCollectedError(null);
+
+      const { data, error } = await supabase
+        .from("collections")
+        .select("post_id, created_at")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        setCollectedItems([]);
+        setCollectedError("Could not load collected items.");
+        setIsLoadingCollected(false);
+        return;
+      }
+
+      const collectionRows = Array.isArray(data)
+        ? data.map((item) => ({
+          post_id: String((item as { post_id?: string }).post_id || "").trim(),
+          created_at: String((item as { created_at?: string }).created_at || ""),
+        })).filter((item) => item.post_id)
+        : [];
+
+      if (!collectionRows.length) {
+        setCollectedItems([]);
+        localStorage.setItem("persona:saved", JSON.stringify([]));
+        setIsLoadingCollected(false);
+        return;
+      }
+
+      const postIds = collectionRows.map((item) => item.post_id);
+      const { data: postsData, error: postsError } = await supabase
+        .from("posts")
+        .select("*")
+        .in("id", postIds);
+
+      if (cancelled) return;
+
+      if (postsError) {
+        setCollectedItems([]);
+        setCollectedError("Could not load collected items.");
+        setIsLoadingCollected(false);
+        return;
+      }
+
+      const postMap = new Map(
+        (Array.isArray(postsData) ? postsData : [])
+          .map((item) => normalizeCard(item))
+          .filter((item): item is CardItem => Boolean(item))
+          .map((item) => [item.id, item]),
+      );
+
+      const orderedPosts = collectionRows
+        .map((row) => postMap.get(row.post_id))
+        .filter((item): item is CardItem => Boolean(item));
+
+      setCollectedItems(orderedPosts);
+      localStorage.setItem("persona:saved", JSON.stringify(orderedPosts));
+      setIsLoadingCollected(false);
+    }
+
+    loadCollectedItems().catch(() => {
+      if (cancelled) return;
+      setCollectedItems([]);
+      setCollectedError("Could not load collected items.");
+      setIsLoadingCollected(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, isSignedIn, userId]);
 
   useEffect(() => {
     if (!isOwnProfile || !isSignedIn || !userId) {
@@ -433,7 +520,27 @@ export default function UserHandlePage() {
     }
   }
 
-  const removeCollected = (card: CardItem) => {
+  const removeCollected = async (card: CardItem) => {
+    if (!isSignedIn || !userId) {
+      setCollectedItems((prev) => {
+        const next = prev.filter((item) => item.id !== card.id);
+        localStorage.setItem("persona:saved", JSON.stringify(next));
+        return next;
+      });
+      return;
+    }
+
+    const { error } = await supabase
+      .from("collections")
+      .delete()
+      .eq("post_id", card.id)
+      .eq("user_id", userId);
+
+    if (error) {
+      console.error("Supabase collection delete error:", error);
+      return;
+    }
+
     setCollectedItems((prev) => {
       const next = prev.filter((item) => item.id !== card.id);
       localStorage.setItem("persona:saved", JSON.stringify(next));
@@ -645,14 +752,20 @@ export default function UserHandlePage() {
                 ) : null}
 
                 {activeTab === "collected" ? (
-                  <GridPanel
-                    emptyText="No collected items yet."
-                    items={collectedItems}
-                    onRemove={removeCollected}
-                    currentUserId={String(user?.id || "")}
-                    currentUsername={user?.username || ""}
-                    currentUserImage={user?.imageUrl || ""}
-                  />
+                  isLoadingCollected ? (
+                    <div className="mt-4 text-sm text-gray-500">Loading collected items...</div>
+                  ) : collectedError ? (
+                    <div className="mt-4 text-sm text-red-600">{collectedError}</div>
+                  ) : (
+                    <GridPanel
+                      emptyText="No collected items yet."
+                      items={collectedItems}
+                      onRemove={removeCollected}
+                      currentUserId={String(user?.id || "")}
+                      currentUsername={user?.username || ""}
+                      currentUserImage={user?.imageUrl || ""}
+                    />
+                  )
                 ) : null}
 
                 {activeTab === "likes" ? (
