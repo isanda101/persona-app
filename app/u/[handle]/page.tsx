@@ -306,6 +306,7 @@ export default function UserHandlePage() {
   const [postedItems, setPostedItems] = useState<CardItem[]>([]);
   const [isLoadingPosted, setIsLoadingPosted] = useState(false);
   const [postedError, setPostedError] = useState<string | null>(null);
+  const [postDeleteError, setPostDeleteError] = useState<string | null>(null);
   const [cachedItems, setCachedItems] = useState<CardItem[]>(() => collectCachedCards());
   const [likedCardCache, setLikedCardCache] = useState<CardItem[]>(() => {
     if (typeof window === "undefined") return [];
@@ -581,11 +582,38 @@ export default function UserHandlePage() {
     });
   };
 
-  const removePosted = (card: CardItem) => {
+  const removePosted = async (card: CardItem) => {
     const ok = window.confirm("Delete this post?");
     if (!ok) return;
 
     const id = card.id;
+    const creatorId = String(card.creator_id || "").trim();
+    const creatorHandle = normalizeHandle(card.creator_handle);
+    const ownHandle = normalizeHandle(user?.username || "");
+    const isOwner =
+      Boolean(userId && creatorId && userId === creatorId) ||
+      Boolean(creatorHandle && ownHandle && creatorHandle === ownHandle);
+
+    if (!isSignedIn || !userId || !isOwner) {
+      setPostDeleteError("Could not delete post.");
+      return;
+    }
+
+    setPostDeleteError(null);
+
+    const { error } = await supabase
+      .from("posts")
+      .delete()
+      .eq("id", id)
+      .eq("creator_id", userId);
+
+    if (error) {
+      console.error("Supabase post delete error:", error);
+      setPostDeleteError("Could not delete post.");
+      return;
+    }
+
+    setPostedError(null);
 
     setPostedItems((prev) => {
       const next = prev.filter((item) => item.id !== id);
@@ -764,14 +792,19 @@ export default function UserHandlePage() {
                   ) : postedError ? (
                     <div className="mt-4 text-sm text-red-600">{postedError}</div>
                   ) : (
-                    <GridPanel
-                      emptyText="No posts yet."
-                      items={postedItems}
-                      onRemove={removePosted}
-                      currentUserId={String(user?.id || "")}
-                      currentUsername={user?.username || ""}
-                      currentUserImage={user?.imageUrl || ""}
-                    />
+                    <>
+                      {postDeleteError ? (
+                        <div className="mt-4 text-sm text-red-600">{postDeleteError}</div>
+                      ) : null}
+                      <GridPanel
+                        emptyText="No posts yet."
+                        items={postedItems}
+                        onRemove={removePosted}
+                        currentUserId={String(user?.id || "")}
+                        currentUsername={user?.username || ""}
+                        currentUserImage={user?.imageUrl || ""}
+                      />
+                    </>
                   )
                 ) : null}
 
