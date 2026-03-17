@@ -29,6 +29,7 @@ import {
   readStoredCards,
   writeStoredCards,
 } from "@/lib/feedCache";
+import { supabase } from "@/lib/supabase";
 
 type Card = {
   id: string;
@@ -149,6 +150,38 @@ function normalizeCoOccurrenceCard(value: unknown): CoOccurrenceCard | null {
   return {
     id: id || `${topic}-${tags[0]}`,
     tags,
+  };
+}
+
+function normalizeSupabasePost(value: unknown): Card | null {
+  if (!value || typeof value !== "object") return null;
+  const obj = value as Record<string, unknown>;
+  const id = String(obj.id || "").trim();
+  if (!id) return null;
+
+  const captionShort = String(obj.caption_short || "").trim();
+  const captionLong = String(obj.caption_long || "").trim();
+  const topic = String(obj.topic || captionShort || "Community Post").trim();
+  const imageUrl = String(obj.image_url || "").trim() || img(topic || id);
+  const tags = sanitizeContentTags(
+    Array.isArray(obj.tags)
+      ? obj.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
+      : [],
+    12,
+  );
+
+  return {
+    id,
+    topic: topic || "Community Post",
+    image_url: imageUrl,
+    caption_short: captionShort || topic || "Community Post",
+    caption_long: captionLong || captionShort || topic || "",
+    tags: tags.length ? tags : sanitizeContentTags([topic || "Community"], 12),
+    creator_name: String(obj.creator_name || "").trim() || undefined,
+    creator_handle: String(obj.creator_handle || "").trim() || undefined,
+    creator_avatar: String(obj.creator_avatar || "").trim() || undefined,
+    creator_id: String(obj.creator_id || "").trim() || undefined,
+    source: "community",
   };
 }
 
@@ -443,7 +476,7 @@ export default function PersonaFeed() {
     nextCursor: number,
     mode: "replace" | "append",
     savedAll?: Card[],
-    options?: { limit?: number },
+    options?: { limit?: number; communityPosts?: Card[] },
   ) {
     const storedTasteTags = readJSON<string[]>("persona:taste", []);
     const followed = readFollowedTags();
@@ -497,15 +530,24 @@ export default function PersonaFeed() {
         : Array.isArray(dna?.keywords)
           ? dna.keywords || []
           : [];
+      const communityPosts =
+        mode === "replace"
+          ? Array.isArray(options?.communityPosts)
+            ? options.communityPosts
+            : []
+          : [];
       const uploadCards =
         mode === "replace"
           ? selectUploadsForFeed(tastes, effectiveStyleKeywords)
           : [];
       const finalCards =
         mode === "replace"
-          ? [...uploadCards, ...newCards]
+          ? [...communityPosts, ...uploadCards, ...newCards]
           : newCards;
-      const finalDeduped = dedupeById(finalCards, mode === "replace" ? batchLimit + 2 : batchLimit);
+      const finalDeduped = dedupeById(
+        finalCards,
+        mode === "replace" ? batchLimit + uploadCards.length + communityPosts.length : batchLimit,
+      );
       const safeCards = finalDeduped.map((card) => {
         if (
           card?.source === "community" ||
@@ -588,9 +630,28 @@ export default function PersonaFeed() {
       const savedAll = readJSON<Card[]>("persona:saved", []);
       setSavedIds(savedAll.map((c) => c.id));
 
+      let communityPosts: Card[] = [];
+      try {
+        const { data, error } = await supabase
+          .from("posts")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(20);
+
+        if (error) {
+          console.error("Supabase posts fetch error:", error);
+        } else if (Array.isArray(data)) {
+          communityPosts = data
+            .map((item) => normalizeSupabasePost(item))
+            .filter((item): item is Card => Boolean(item));
+        }
+      } catch (error) {
+        console.error("Failed to fetch Supabase posts", error);
+      }
+
       const uploads = readStoredCards<Card>("persona:uploads");
       const cached = readStoredCards<Card>("persona:feed_cache");
-      const fastCards = dedupeById([...uploads, ...cached], 5);
+      const fastCards = dedupeById([...communityPosts, ...uploads, ...cached], 5);
       if (fastCards.length) {
         setCards(fastCards);
         addSeenFromCards(fastCards);
@@ -600,7 +661,7 @@ export default function PersonaFeed() {
       }
 
       try {
-        await fetchBatch(0, "replace", savedAll, { limit: 5 });
+        await fetchBatch(0, "replace", savedAll, { limit: 5, communityPosts });
       } finally {
         setIsLoading(false);
       }
@@ -619,8 +680,28 @@ export default function PersonaFeed() {
     setIsLoading(true);
     const savedAll = readJSON<Card[]>("persona:saved", []);
     setSavedIds(savedAll.map((c) => c.id));
+
+    let communityPosts: Card[] = [];
     try {
-      await fetchBatch(0, "replace", savedAll);
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error("Supabase posts fetch error:", error);
+      } else if (Array.isArray(data)) {
+        communityPosts = data
+          .map((item) => normalizeSupabasePost(item))
+          .filter((item): item is Card => Boolean(item));
+      }
+    } catch (error) {
+      console.error("Failed to fetch Supabase posts", error);
+    }
+
+    try {
+      await fetchBatch(0, "replace", savedAll, { communityPosts });
     } finally {
       setIsLoading(false);
     }
