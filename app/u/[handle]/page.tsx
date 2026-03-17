@@ -7,6 +7,7 @@ import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextj
 import { Bookmark, Grid3X3, Heart } from "lucide-react";
 import PersonaHeader from "@/components/PersonaHeader";
 import { readFollowedTags } from "@/lib/followedTags";
+import { supabase } from "@/lib/supabase";
 import { slugifyTag } from "@/lib/tags";
 
 type TabKey = "posted" | "collected" | "likes";
@@ -164,19 +165,6 @@ function isTabKey(value: string): value is TabKey {
   return value === "posted" || value === "collected" || value === "likes";
 }
 
-function readOwnPosted(resolvedHandle: string, userId?: string): CardItem[] {
-  const uploads = readCardArray("persona:uploads");
-  const handleKey = normalizeHandle(resolvedHandle);
-  const idKey = String(userId || "").trim();
-
-  return uploads.filter((card) => {
-    const creatorId = String(card.creator_id || "").trim();
-    const creatorHandle = normalizeHandle(card.creator_handle);
-    if (idKey && creatorId && creatorId === idKey) return true;
-    return Boolean(handleKey && creatorHandle === handleKey);
-  });
-}
-
 type GridPanelProps = {
   emptyText: string;
   items: CardItem[];
@@ -312,9 +300,9 @@ export default function UserHandlePage() {
   const followedTags = useMemo(() => readFollowedTags(), []);
 
   const [collectedItems, setCollectedItems] = useState<CardItem[]>(() => readCardArray("persona:saved"));
-  const [postedItems, setPostedItems] = useState<CardItem[]>(() =>
-    readOwnPosted(resolvedHandle, String(user?.id || "").trim()),
-  );
+  const [postedItems, setPostedItems] = useState<CardItem[]>([]);
+  const [isLoadingPosted, setIsLoadingPosted] = useState(false);
+  const [postedError, setPostedError] = useState<string | null>(null);
   const [cachedItems, setCachedItems] = useState<CardItem[]>(() => collectCachedCards());
   const [likedCardCache, setLikedCardCache] = useState<CardItem[]>(() => {
     if (typeof window === "undefined") return [];
@@ -329,14 +317,62 @@ export default function UserHandlePage() {
 
   useEffect(() => {
     if (!isOwnProfile || !isSignedIn) return;
-    setPostedItems(readOwnPosted(resolvedHandle, String(user?.id || "").trim()));
     setCollectedItems(readCardArray("persona:saved"));
     const likesRaw = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
     const parsedLikes = parseLikes(likesRaw);
     setLikedIds(parsedLikes.ids);
     setLikedCardCache(parsedLikes.cards);
     setCachedItems(collectCachedCards());
-  }, [isOwnProfile, isSignedIn, resolvedHandle, user?.id]);
+  }, [isOwnProfile, isSignedIn]);
+
+  useEffect(() => {
+    if (!isOwnProfile || !isSignedIn || !user?.id) {
+      setPostedItems([]);
+      setIsLoadingPosted(false);
+      setPostedError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPostedItems() {
+      setIsLoadingPosted(true);
+      setPostedError(null);
+
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("creator_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        setPostedItems([]);
+        setPostedError("Could not load posts.");
+        setIsLoadingPosted(false);
+        return;
+      }
+
+      const nextItems = Array.isArray(data)
+        ? data.map((item) => normalizeCard(item)).filter((item): item is CardItem => Boolean(item))
+        : [];
+
+      setPostedItems(nextItems);
+      setIsLoadingPosted(false);
+    }
+
+    loadPostedItems().catch(() => {
+      if (cancelled) return;
+      setPostedItems([]);
+      setPostedError("Could not load posts.");
+      setIsLoadingPosted(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, isSignedIn, user?.id]);
 
   const likedItems = useMemo(() => {
     const pool = dedupeById([
@@ -591,14 +627,20 @@ export default function UserHandlePage() {
                 </div>
 
                 {activeTab === "posted" ? (
-                  <GridPanel
-                    emptyText="You haven't posted anything yet."
-                    items={postedItems}
-                    onRemove={removePosted}
-                    currentUserId={String(user?.id || "")}
-                    currentUsername={user?.username || ""}
-                    currentUserImage={user?.imageUrl || ""}
-                  />
+                  isLoadingPosted ? (
+                    <div className="mt-4 text-sm text-gray-500">Loading posts...</div>
+                  ) : postedError ? (
+                    <div className="mt-4 text-sm text-red-600">{postedError}</div>
+                  ) : (
+                    <GridPanel
+                      emptyText="No posts yet."
+                      items={postedItems}
+                      onRemove={removePosted}
+                      currentUserId={String(user?.id || "")}
+                      currentUsername={user?.username || ""}
+                      currentUserImage={user?.imageUrl || ""}
+                    />
+                  )
                 ) : null}
 
                 {activeTab === "collected" ? (
