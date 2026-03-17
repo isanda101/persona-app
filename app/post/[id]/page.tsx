@@ -410,6 +410,21 @@ export default function PostDetailPage() {
     );
   }
 
+  if (!post) {
+    return (
+      <div className="min-h-screen bg-white text-black px-5 py-8">
+        <div className="max-w-2xl mx-auto">
+          <PersonaHeader showBack />
+          <h1 className="text-2xl font-semibold">Post</h1>
+          <div className="mt-4 text-gray-600">Post not found</div>
+          <Link href="/u/you?tab=collected" className="mt-4 inline-block underline text-sm">
+            Back to Collection
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   const title = post.caption_short || post.topic || "Untitled";
   const isLiked = Boolean(likes[post.id]);
   const isCollected = savedIds.includes(post.id);
