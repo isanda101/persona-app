@@ -275,6 +275,7 @@ export default function UserHandlePage() {
 
   const handle = String(params?.handle || "").trim().replace(/^@+/, "");
   const ownUsername = String(user?.username || "").trim().replace(/^@+/, "");
+  const userId = String(user?.id || "").trim();
   const isOwnProfile =
     handle.toLowerCase() === "you" ||
     (isSignedIn && ownUsername && handle.toLowerCase() === ownUsername.toLowerCase());
@@ -326,7 +327,7 @@ export default function UserHandlePage() {
   }, [isOwnProfile, isSignedIn]);
 
   useEffect(() => {
-    if (!isOwnProfile || !isSignedIn || !user?.id) {
+    if (!isOwnProfile || !isSignedIn || !userId) {
       setPostedItems([]);
       setIsLoadingPosted(false);
       setPostedError(null);
@@ -342,7 +343,7 @@ export default function UserHandlePage() {
       const { data, error } = await supabase
         .from("posts")
         .select("*")
-        .eq("creator_id", user.id)
+        .eq("creator_id", userId)
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
@@ -372,7 +373,7 @@ export default function UserHandlePage() {
     return () => {
       cancelled = true;
     };
-  }, [isOwnProfile, isSignedIn, user?.id]);
+  }, [isSignedIn, userId]);
 
   const likedItems = useMemo(() => {
     const pool = dedupeById([
