@@ -143,8 +143,8 @@ async function fetchUnsplashImage(query: string) {
   }
 }
 
-function img(topic: string) {
-  return `https://picsum.photos/seed/${encodeURIComponent(topic)}/1200/800`;
+function img() {
+  return "";
 }
 
 function fallbackDNA(tastes: string[], saved: SavedSignal[]): StyleDNA {
@@ -171,11 +171,10 @@ function fallbackCard(topic: string, id: string): Card {
     id,
     topic,
     image_query: defaultQuery,
-    image_url: img(topic),
+    image_url: img(),
     caption_short: `${topic}: a clean, quick editorial note—why it matters right now.`,
     caption_long: `Expanded take on ${topic}. (Fallback text — AI unavailable.)`,
     tags: [topic, "Style", "Culture", "Aesthetic", "Reference"],
-    attribution: "Picsum (placeholder)",
   };
 }
 
@@ -397,11 +396,7 @@ Requirements:
 
   // Always have deterministic fallback ready
   const fallback = () => {
-    const cards = Array.from({ length: 12 }).map((_, i) => {
-      const topic = tastes[(i + cursor) % tastes.length];
-      return fallbackCard(topic, `${cursor}-${i + 1}`);
-    });
-    return { cards, style_dna: fallbackDNA(tastes, saved) };
+    return { cards: [] as Card[], style_dna: fallbackDNA(tastes, saved) };
   };
 
   // If no key, return fallback JSON
@@ -509,11 +504,10 @@ JSON ONLY.`;
                 topic,
                 safeArrayStrings(c.tags, 12).length ? safeArrayStrings(c.tags, 12) : [topic, "Style", "Culture"],
               ),
-              image_url: img(topic),
+              image_url: "",
               caption_short: String(c.caption_short || `${topic}: editorial note.`).slice(0, 220),
               caption_long: String(c.caption_long || `Expanded take on ${topic}.`),
               tags: safeArrayStrings(c.tags, 12).length ? safeArrayStrings(c.tags, 12) : [topic, "Style", "Culture"],
-              attribution: "Picsum (placeholder)",
             };
           })
         : fallback().cards;
@@ -562,11 +556,11 @@ JSON ONLY.`;
         id: `${cursor}-${i + 1}`,
         topic: String(card.topic || topic),
         image_query: String(card.image_query || deriveImageQuery(String(card.topic || topic), tags)),
-        image_url: String(card.image_url || img(topic)),
+        image_url: String(card.image_url || ""),
         caption_short: String(card.caption_short || `${topic}: editorial note.`).slice(0, 220),
         caption_long: String(card.caption_long || `Expanded take on ${topic}.`),
         tags,
-        attribution: card.attribution || "Picsum (placeholder)",
+        attribution: card.attribution,
       };
     });
 
@@ -625,26 +619,6 @@ JSON ONLY.`;
         ).length;
       }
     }
-
-    const cardsNeedingImage = normalizedCards
-      .filter((card) => !card.image_url || card.image_url.includes("picsum.photos"))
-      .slice(0, 3);
-
-    await Promise.all(
-      cardsNeedingImage.map(async (card) => {
-        const query = card.image_query || deriveImageQuery(card.topic, card.tags);
-        const image = await fetchUnsplashImage(query);
-        image_debug.push({
-          topic: card.topic,
-          image_query: card.image_query,
-          used_unsplash: Boolean(image),
-          unsplash_ok: image ? true : false,
-        });
-        if (!image) return;
-        card.image_url = image.image_url;
-        card.attribution = image.attribution;
-      }),
-    );
 
     // NEVER return empty cards
     if (!normalizedCards.length) {

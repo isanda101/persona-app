@@ -58,11 +58,6 @@ type StyleDNA = {
   one_liner?: string;
 };
 
-type SavedSignal = {
-  caption_short?: string;
-  tags?: string[];
-};
-
 type StoredUploadRecord = CardWithId & Record<string, unknown>;
 
 function readJSON<T>(key: string, fallback: T): T {
@@ -84,31 +79,16 @@ function updateFeedCache(incoming: Card[], savedCards?: Card[]) {
   const existing = readStoredCards<Card>("persona:feed_cache");
   const saved = Array.isArray(savedCards) ? savedCards : readJSON<Card[]>("persona:saved", []);
   const merged = [...incoming, ...uploads, ...saved, ...existing].filter(
-    (card) => card && typeof card.id === "string" && card.id.trim(),
+    (card) =>
+      card &&
+      typeof card.id === "string" &&
+      card.id.trim() &&
+      typeof card.image_url === "string" &&
+      card.image_url.trim() &&
+      !card.image_url.includes("picsum.photos") &&
+      card.source !== "editorial",
   );
   writeStoredCards("persona:feed_cache", dedupeCardsByIdNewestFirst(merged, 200));
-}
-
-function deriveImageQuery(topic: string, tags: string[]) {
-  const tagText = tags.join(" ").toLowerCase();
-  const topicText = topic.toLowerCase();
-  const has = (value: string) => tagText.includes(value) || topicText.includes(value);
-
-  if (has("gucci")) {
-    if (topicText.includes("bag")) return "gucci bag marmont";
-    if (topicText.includes("sneaker") || tagText.includes("sneaker")) return "gucci sneakers";
-    return "gucci fashion";
-  }
-  if (has("rolex")) return "rolex gmt watch close up";
-  if (has("porsche")) return "porsche 911 sports car";
-  if (has("eames")) return "eames lounge chair interior";
-  if (has("levi's") || has("levis") || has("denim")) return "vintage levis denim jeans";
-
-  return `${(tags || []).slice(0, 3).join(" ")} editorial photo`.trim();
-}
-
-function img(topic: string) {
-  return `https://picsum.photos/seed/${encodeURIComponent(topic)}/1200/800`;
 }
 
 function cleanHandle(handle?: string) {
@@ -163,7 +143,8 @@ function normalizeSupabasePost(value: unknown): Card | null {
   const captionShort = String(obj.caption_short || "").trim();
   const captionLong = String(obj.caption_long || "").trim();
   const topic = String(obj.topic || captionShort || "Community Post").trim();
-  const imageUrl = String(obj.image_url || "").trim() || img(topic || id);
+  const imageUrl = String(obj.image_url || "").trim();
+  if (!imageUrl || imageUrl.includes("picsum.photos")) return null;
   const tags = sanitizeContentTags(
     Array.isArray(obj.tags)
       ? obj.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
@@ -187,6 +168,32 @@ function normalizeSupabasePost(value: unknown): Card | null {
     collections_count: Math.max(0, Number(obj.collections_count) || 0),
     source: "community",
   };
+}
+
+function isRealFeedCard(card: Card | null | undefined): card is Card {
+  if (!card || !card.id) return false;
+  const imageUrl = String(card.image_url || "").trim();
+  if (!imageUrl || imageUrl.includes("picsum.photos")) return false;
+  if (card.source === "editorial") return false;
+  return true;
+}
+
+function rankCommunityCards(cards: Card[], tastes: string[]) {
+  const normalizedTasteSet = new Set(
+    tastes.map((tag) => normalizeFollowedTag(tag)).filter(Boolean),
+  );
+
+  return [...cards].sort((a, b) => {
+    const aMatches = (Array.isArray(a.tags) ? a.tags : []).reduce((count, tag) => (
+      normalizedTasteSet.has(normalizeFollowedTag(tag)) ? count + 1 : count
+    ), 0);
+    const bMatches = (Array.isArray(b.tags) ? b.tags : []).reduce((count, tag) => (
+      normalizedTasteSet.has(normalizeFollowedTag(tag)) ? count + 1 : count
+    ), 0);
+
+    if (aMatches !== bMatches) return bMatches - aMatches;
+    return 0;
+  });
 }
 
 async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
@@ -608,6 +615,7 @@ export default function PersonaFeed() {
     ) {
       return null;
     }
+    if (!obj.image_url.trim() || obj.image_url.includes("picsum.photos")) return null;
     // Keep community upload objects exactly as stored in localStorage.
     return obj;
   }
@@ -666,114 +674,39 @@ export default function PersonaFeed() {
     );
     const savedSource = savedAll ?? readJSON<Card[]>("persona:saved", []);
     const batchLimit = Math.max(1, Math.min(Number(options?.limit || (mode === "replace" ? 5 : 12)), 12));
-    const saved: SavedSignal[] = Array.isArray(savedSource)
-      ? savedSource.slice(0, 30).map((c) => ({ caption_short: c.caption_short, tags: c.tags }))
-      : [];
-    const avoid_topics = seenTopics.slice(-80);
-    const savedTags = savedSource
-      .flatMap((c) => (Array.isArray(c.tags) ? c.tags : []))
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .slice(-80);
-    const avoid_tags = Array.from(new Set([...seenTagsRef.current.slice(-160), ...savedTags])).slice(
-      -160,
+    const uploadCards = selectUploadsForFeed(tastes, []);
+    const cachedRealCards = readStoredCards<Card>("persona:feed_cache").filter(isRealFeedCard);
+    const communityPosts = Array.isArray(options?.communityPosts)
+      ? options.communityPosts.filter(isRealFeedCard)
+      : (await fetchCommunityPostsFromSupabase(60)).filter(isRealFeedCard);
+    const rankedCommunityPosts = rankCommunityCards(communityPosts, tastes);
+    const realPool = dedupeById(
+      [...rankedCommunityPosts, ...uploadCards, ...cachedRealCards].filter(isRealFeedCard),
+      200,
     );
 
-    let data: { cards?: Card[]; style_dna?: StyleDNA };
-    try {
-      const res = await fetch("/api/generate-cards", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tastes, saved, cursor: nextCursor, avoid_topics, avoid_tags }),
-      });
-      data = (await res.json()) as { cards?: Card[]; style_dna?: StyleDNA };
-      setLoadError(null);
-    } catch (error) {
-      console.error("Failed to fetch /api/generate-cards", error);
-      setLoadError("Could not load Persona feed. Please retry.");
+    updateFeedCache(realPool, savedSource);
+    setLoadError(null);
+
+    if (mode === "replace") {
+      const replaceCards = realPool.slice(0, batchLimit);
+      setCards(replaceCards);
+      addSeenFromCards(replaceCards);
+      setIndex(0);
+      setExpanded(false);
+      cursorRef.current = 0;
+      setCursor(0);
       return;
     }
 
-    if (Array.isArray(data.cards) && data.cards.length) {
-      const rawBatch = data.cards.slice(0, batchLimit);
-      const newCards: Card[] = rawBatch.map((card: Card, i: number) => ({
-        ...card,
-        id: String(card.id || `${nextCursor}-${i + 1}`),
-      }));
-
-      const effectiveStyleKeywords = Array.isArray(data.style_dna?.keywords)
-        ? data.style_dna?.keywords || []
-        : Array.isArray(dna?.keywords)
-          ? dna.keywords || []
-          : [];
-      const communityPosts =
-        mode === "replace"
-          ? Array.isArray(options?.communityPosts)
-            ? options.communityPosts
-            : []
-          : [];
-      const uploadCards =
-        mode === "replace"
-          ? selectUploadsForFeed(tastes, effectiveStyleKeywords)
-          : [];
-      const finalCards =
-        mode === "replace"
-          ? [...communityPosts, ...uploadCards, ...newCards]
-          : newCards;
-      const finalDeduped = dedupeById(
-        finalCards,
-        mode === "replace" ? batchLimit + uploadCards.length + communityPosts.length : batchLimit,
-      );
-      const safeCards = finalDeduped.map((card) => {
-        if (
-          card?.source === "community" ||
-          String(card?.image_url || "").includes(".public.blob.vercel-storage.com")
-        ) {
-          return {
-            ...card,
-            source: "community" as const,
-          };
-        }
-        const topic = String(card.topic || card.tags?.[0] || "Style");
-        const tags = Array.isArray(card.tags) && card.tags.length
-          ? card.tags
-          : [topic, "Style", "Culture"];
-        return {
-          ...card,
-          id: String(card.id || `${nextCursor}-${Math.random().toString(36).slice(2, 8)}`),
-          image_query: String(card.image_query || deriveImageQuery(topic, tags)),
-          image_url: String(card.image_url || img(topic)),
-          caption_short: String(card.caption_short || `${topic}: editorial note.`).slice(0, 220),
-          caption_long: String(card.caption_long || `Expanded take on ${topic}.`),
-          tags,
-        };
-      });
-
-      // Cache feed cards for Collection liked-id reconstruction.
-      updateFeedCache(safeCards, savedSource);
-
-      if (mode === "replace") {
-        const replaceCards = dedupeById(safeCards, batchLimit);
-        setCards(replaceCards);
-        addSeenFromCards(replaceCards);
-        setIndex(0);
-        setExpanded(false);
-        cursorRef.current = nextCursor;
-        setCursor(nextCursor);
-      } else {
-        const existingIds = new Set(cardsRef.current.map((c) => c.id));
-        const deduped = dedupeById(newCards, batchLimit).filter((c) => !existingIds.has(c.id));
-        setCards((prev) => [...prev, ...deduped]);
-        addSeenFromCards(deduped);
-        cursorRef.current = nextCursor;
-        setCursor((prev) => prev + 1);
-      }
-    }
-
-    if (data.style_dna) {
-      setDna(data.style_dna);
-      writeJSON("persona:style_dna", data.style_dna);
-    }
+    const start = cardsRef.current.length;
+    const nextCards = realPool.slice(start, start + batchLimit);
+    const existingIds = new Set(cardsRef.current.map((c) => c.id));
+    const deduped = nextCards.filter((c) => !existingIds.has(c.id));
+    setCards((prev) => [...prev, ...deduped]);
+    addSeenFromCards(deduped);
+    cursorRef.current = nextCursor;
+    setCursor(nextCursor);
   }
 
   async function loadMoreIfNeeded(nextIndex: number) {
@@ -821,6 +754,9 @@ export default function PersonaFeed() {
 
       try {
         await fetchBatch(0, "replace", savedAll, { limit: 5, communityPosts });
+      } catch (error) {
+        console.error("Failed to load real feed", error);
+        setLoadError("Could not load Persona feed. Please retry.");
       } finally {
         setIsLoading(false);
       }
@@ -843,6 +779,9 @@ export default function PersonaFeed() {
 
     try {
       await fetchBatch(0, "replace", savedAll, { communityPosts });
+    } catch (error) {
+      console.error("Failed to reload real feed", error);
+      setLoadError("Could not load Persona feed. Please retry.");
     } finally {
       setIsLoading(false);
     }
@@ -1142,8 +1081,21 @@ export default function PersonaFeed() {
     }
 
     return (
-      <div className="min-h-[70svh] px-4 py-6 flex items-center justify-center text-gray-500">
-        Loading Persona…
+      <div className="min-h-[70svh] px-6 py-10 flex items-center justify-center">
+        <div className="w-full max-w-sm rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm">
+          <div className="text-lg font-semibold text-black">No posts yet for your taste graph.</div>
+          <div className="mt-2 text-sm text-gray-600">
+            Follow tags or post your first find to start shaping the feed.
+          </div>
+          <div className="mt-5 flex items-center justify-center gap-2">
+            <Link href="/taste" className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700">
+              Follow tags
+            </Link>
+            <Link href="/upload" className="rounded-full bg-black px-4 py-2 text-sm text-white">
+              Post a find
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1503,7 +1455,7 @@ export default function PersonaFeed() {
                 Drag up/down to browse • Tap “Read more”
               </div>
               <div className="mt-1 text-center text-[10px] text-gray-400 hidden md:block">
-                {active?.source || "editorial"} • {String(active?.image_url || "").slice(0, 60)}
+                {active?.source || "community"} • {String(active?.image_url || "").slice(0, 60)}
               </div>
               {isLoadingMore ? (
                 <div className="mt-2 text-center text-xs text-gray-500">Loading more…</div>
