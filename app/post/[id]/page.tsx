@@ -147,7 +147,6 @@ export default function PostDetailPage() {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
   const [remotePost, setRemotePost] = useState<CardItem | null>(null);
   const [isLoadingRemotePost, setIsLoadingRemotePost] = useState(false);
-  const [hasCheckedRemotePost, setHasCheckedRemotePost] = useState(false);
   const username = String(user?.username || "").trim().replace(/^@+/, "");
   const currentUserAvatar = String(user?.imageUrl || "").trim();
 
@@ -179,7 +178,6 @@ export default function PostDetailPage() {
       Promise.resolve().then(() => {
         if (cancelled) return;
         setIsLoadingRemotePost(true);
-        setHasCheckedRemotePost(false);
       });
 
       const { data, error } = await supabase
@@ -194,14 +192,12 @@ export default function PostDetailPage() {
         console.error("Supabase post fetch error:", error);
         setRemotePost(null);
         setIsLoadingRemotePost(false);
-        setHasCheckedRemotePost(true);
         return;
       }
 
       const normalized = normalizeCard(data);
       setRemotePost(normalized ? { ...normalized, source: "community" } : null);
       setIsLoadingRemotePost(false);
-      setHasCheckedRemotePost(true);
     }
 
     loadRemotePost().catch((error) => {
@@ -209,7 +205,6 @@ export default function PostDetailPage() {
       console.error("Failed to fetch Supabase post", error);
       setRemotePost(null);
       setIsLoadingRemotePost(false);
-      setHasCheckedRemotePost(true);
     });
 
     return () => {
@@ -218,23 +213,18 @@ export default function PostDetailPage() {
   }, [localPost, postId]);
 
   useEffect(() => {
-    if (!post?.id) {
-      Promise.resolve().then(() => {
-        setComments([]);
-        setIsLoadingComments(false);
-        setCommentsError(null);
-      });
-      return;
-    }
-
     let cancelled = false;
 
     async function loadComments() {
-      Promise.resolve().then(() => {
-        if (cancelled) return;
-        setIsLoadingComments(true);
+      if (!post?.id) {
+        setComments([]);
         setCommentsError(null);
-      });
+        setIsLoadingComments(false);
+        return;
+      }
+
+      setIsLoadingComments(true);
+      setCommentsError(null);
 
       const { data, error } = await supabase
         .from("comments")
@@ -246,17 +236,15 @@ export default function PostDetailPage() {
 
       if (error) {
         console.error("Supabase comments fetch error:", error);
-        setComments([]);
         setCommentsError("Could not load comments.");
-        setIsLoadingComments(false);
-        return;
+        setComments([]);
+      } else {
+        const nextComments = Array.isArray(data)
+          ? data.map((item) => normalizeComment(item)).filter((item): item is PersonaComment => Boolean(item))
+          : [];
+        setComments(nextComments);
       }
 
-      const nextComments = Array.isArray(data)
-        ? data.map((item) => normalizeComment(item)).filter((item): item is PersonaComment => Boolean(item))
-        : [];
-
-      setComments(nextComments);
       setIsLoadingComments(false);
     }
 
@@ -272,8 +260,6 @@ export default function PostDetailPage() {
       cancelled = true;
     };
   }, [post?.id]);
-
-  const shouldShowNotFound = !post && (hasCheckedRemotePost || (!postId || Boolean(localPost)));
 
   function showActionMessage(message: string) {
     setActionMessage(message);
@@ -488,31 +474,11 @@ export default function PostDetailPage() {
     );
   }
 
-  if (shouldShowNotFound) {
-    return (
-      <div className="min-h-screen bg-white text-black px-5 py-8">
-        <div className="max-w-2xl mx-auto">
-          <PersonaHeader showBack />
-          <h1 className="text-2xl font-semibold">Post</h1>
-          <div className="mt-4 text-gray-600">Post not found</div>
-          <Link href="/u/you?tab=collected" className="mt-4 inline-block underline text-sm">
-            Back to Collection
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   if (!post) {
     return (
-      <div className="min-h-screen bg-white text-black px-5 py-8">
-        <div className="max-w-2xl mx-auto">
-          <PersonaHeader showBack />
-          <h1 className="text-2xl font-semibold">Post</h1>
-          <div className="mt-4 text-gray-600">Post not found</div>
-          <Link href="/u/you?tab=collected" className="mt-4 inline-block underline text-sm">
-            Back to Collection
-          </Link>
+      <div className="min-h-screen bg-white px-4 py-8">
+        <div className="mx-auto max-w-md text-sm text-gray-500">
+          Post not found.
         </div>
       </div>
     );
