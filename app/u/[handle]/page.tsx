@@ -587,14 +587,8 @@ export default function UserHandlePage() {
     if (!ok) return;
 
     const id = card.id;
-    const creatorId = String(card.creator_id || "").trim();
-    const creatorHandle = normalizeHandle(card.creator_handle);
-    const ownHandle = normalizeHandle(user?.username || "");
-    const isOwner =
-      Boolean(userId && creatorId && userId === creatorId) ||
-      Boolean(creatorHandle && ownHandle && creatorHandle === ownHandle);
 
-    if (!isSignedIn || !userId || !isOwner) {
+    if (!isSignedIn || !userId) {
       setPostDeleteError("Could not delete post.");
       return;
     }
@@ -604,11 +598,10 @@ export default function UserHandlePage() {
     const { error } = await supabase
       .from("posts")
       .delete()
-      .eq("id", id)
-      .eq("creator_id", userId);
+      .eq("id", id);
 
     if (error) {
-      console.error("Supabase post delete error:", error);
+      console.error("Could not delete post", error);
       setPostDeleteError("Could not delete post.");
       return;
     }
