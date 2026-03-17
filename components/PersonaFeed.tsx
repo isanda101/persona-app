@@ -203,7 +203,6 @@ export default function PersonaFeed() {
   const [isUpdating, setIsUpdating] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [likes, setLikes] = useState<Record<string, boolean>>({});
   const [isLiked, setIsLiked] = useState(false);
   const [showHeartBurst, setShowHeartBurst] = useState(false);
   const [actionToast, setActionToast] = useState<string | null>(null);
@@ -292,8 +291,6 @@ export default function PersonaFeed() {
   );
 
   useEffect(() => {
-    const storedLikes = readJSON<Record<string, boolean>>("persona:likes", {});
-    setLikes(storedLikes);
     setEngagement(readEngagement());
     setFollowedTags(readFollowedTags());
   }, []);
@@ -317,13 +314,50 @@ export default function PersonaFeed() {
       setIsLiked(false);
       return;
     }
-    setIsLiked(Boolean(likes[active.id]));
     const ensured = ensureEngagement(active.id);
     setEngagement((prev) => {
       if (prev[active.id]) return prev;
       return { ...prev, [active.id]: ensured };
     });
-  }, [active, likes]);
+  }, [active]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLikedState() {
+      if (!active?.id || !isSignedIn || !user?.id) {
+        setIsLiked(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", active.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Supabase like fetch error:", error);
+        setIsLiked(false);
+        return;
+      }
+
+      setIsLiked(Boolean(data?.id));
+    }
+
+    loadLikedState().catch((error) => {
+      if (cancelled) return;
+      console.error("Failed to fetch Supabase like", error);
+      setIsLiked(false);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.id, isSignedIn, user?.id]);
 
   useEffect(() => {
     return () => {
@@ -759,7 +793,7 @@ export default function PersonaFeed() {
     window.setTimeout(() => setActionToast(null), 1500);
   }
 
-  function toggleLike(card: Card) {
+  async function toggleLike(card: Card) {
     if (!isSignedIn) {
       const redirectUrl = typeof window !== "undefined"
         ? `${window.location.pathname}${window.location.search}`
@@ -768,33 +802,46 @@ export default function PersonaFeed() {
       return;
     }
 
-    setLikes((prev) => {
-      const wasLiked = Boolean(prev[card.id]);
-      const next = { ...prev };
-      if (wasLiked) {
-        delete next[card.id];
-      } else {
-        next[card.id] = true;
-      }
-      writeJSON("persona:likes", next);
-      setIsLiked(Boolean(next[card.id]));
-      setEngagement((prevEngagement) => {
-        const current = getEngagement(card.id, prevEngagement);
-        const nextCounts = {
-          ...current,
-          likes_count: wasLiked
-            ? Math.max(0, current.likes_count - 1)
-            : current.likes_count + 1,
-        };
-        const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
-        writeEngagement(nextEngagement);
-        return nextEngagement;
-      });
-      return next;
+    if (!user?.id) return;
+
+    const wasLiked = isLiked;
+    const request = wasLiked
+      ? supabase
+        .from("likes")
+        .delete()
+        .eq("post_id", card.id)
+        .eq("user_id", user.id)
+      : supabase
+        .from("likes")
+        .insert({
+          id: crypto.randomUUID(),
+          post_id: card.id,
+          user_id: user.id,
+        });
+
+    const { error } = await request;
+
+    if (error) {
+      console.error("Supabase like toggle error:", error);
+      return;
+    }
+
+    setIsLiked(!wasLiked);
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(card.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        likes_count: wasLiked
+          ? Math.max(0, current.likes_count - 1)
+          : current.likes_count + 1,
+      };
+      const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
     });
   }
 
-  function likeCard(card: Card) {
+  async function likeCard(card: Card) {
     if (!isSignedIn) {
       const redirectUrl = typeof window !== "undefined"
         ? `${window.location.pathname}${window.location.search}`
@@ -803,22 +850,31 @@ export default function PersonaFeed() {
       return;
     }
 
-    setLikes((prev) => {
-      if (prev[card.id]) return prev;
-      const next = { ...prev, [card.id]: true };
-      writeJSON("persona:likes", next);
-      setIsLiked(true);
-      setEngagement((prevEngagement) => {
-        const current = getEngagement(card.id, prevEngagement);
-        const nextCounts = {
-          ...current,
-          likes_count: current.likes_count + 1,
-        };
-        const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
-        writeEngagement(nextEngagement);
-        return nextEngagement;
+    if (!user?.id || isLiked) return;
+
+    const { error } = await supabase
+      .from("likes")
+      .insert({
+        id: crypto.randomUUID(),
+        post_id: card.id,
+        user_id: user.id,
       });
-      return next;
+
+    if (error) {
+      console.error("Supabase like insert error:", error);
+      return;
+    }
+
+    setIsLiked(true);
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(card.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        likes_count: current.likes_count + 1,
+      };
+      const nextEngagement = { ...prevEngagement, [card.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
     });
   }
 

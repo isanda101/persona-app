@@ -133,9 +133,7 @@ export default function PostDetailPage() {
   const { isSignedIn, user } = useUser();
   const params = useParams<{ id: string }>();
   const postId = decodeURIComponent(String(params?.id || ""));
-  const [likes, setLikes] = useState<Record<string, boolean>>(() =>
-    safeParseJSON<Record<string, boolean>>(localStorage.getItem("persona:likes"), {}),
-  );
+  const [likes, setLikes] = useState<Record<string, boolean>>({});
   const [savedIds, setSavedIds] = useState<string[]>(() =>
     readCardsFromKey("persona:saved").map((card) => card.id),
   );
@@ -261,6 +259,44 @@ export default function PostDetailPage() {
     };
   }, [post?.id]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadLikedState() {
+      if (!post?.id || !isSignedIn || !user?.id) {
+        setLikes({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("likes")
+        .select("id")
+        .eq("post_id", post.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Supabase like fetch error:", error);
+        setLikes({});
+        return;
+      }
+
+      setLikes(data?.id ? { [post.id]: true } : {});
+    }
+
+    loadLikedState().catch((error) => {
+      if (cancelled) return;
+      console.error("Failed to fetch Supabase like", error);
+      setLikes({});
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isSignedIn, post?.id, user?.id]);
+
   function showActionMessage(message: string) {
     setActionMessage(message);
     window.setTimeout(() => setActionMessage(null), 1500);
@@ -274,34 +310,48 @@ export default function PostDetailPage() {
     router.push(`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`);
   }
 
-  function toggleLike() {
+  async function toggleLike() {
     if (!post) return;
     if (!isSignedIn) {
       redirectToSignIn();
       return;
     }
-    setLikes((prev) => {
-      const wasLiked = Boolean(prev[post.id]);
-      const next = { ...prev };
-      if (wasLiked) {
-        delete next[post.id];
-      } else {
-        next[post.id] = true;
-      }
-      localStorage.setItem("persona:likes", JSON.stringify(next));
-      setEngagement((prevEngagement) => {
-        const current = getEngagement(post.id, prevEngagement);
-        const nextCounts = {
-          ...current,
-          likes_count: wasLiked
-            ? Math.max(0, current.likes_count - 1)
-            : current.likes_count + 1,
-        };
-        const nextEngagement = { ...prevEngagement, [post.id]: nextCounts };
-        writeEngagement(nextEngagement);
-        return nextEngagement;
-      });
-      return next;
+    if (!user?.id) return;
+
+    const wasLiked = Boolean(likes[post.id]);
+    const request = wasLiked
+      ? supabase
+        .from("likes")
+        .delete()
+        .eq("post_id", post.id)
+        .eq("user_id", user.id)
+      : supabase
+        .from("likes")
+        .insert({
+          id: crypto.randomUUID(),
+          post_id: post.id,
+          user_id: user.id,
+        });
+
+    const { error } = await request;
+
+    if (error) {
+      console.error("Supabase like toggle error:", error);
+      return;
+    }
+
+    setLikes(!wasLiked ? { [post.id]: true } : {});
+    setEngagement((prevEngagement) => {
+      const current = getEngagement(post.id, prevEngagement);
+      const nextCounts = {
+        ...current,
+        likes_count: wasLiked
+          ? Math.max(0, current.likes_count - 1)
+          : current.likes_count + 1,
+      };
+      const nextEngagement = { ...prevEngagement, [post.id]: nextCounts };
+      writeEngagement(nextEngagement);
+      return nextEngagement;
     });
   }
 
