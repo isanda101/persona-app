@@ -160,7 +160,7 @@ export default function PostDetailPage() {
     const pool = [...uploads, ...collection, ...saved, ...feedCache];
     return pool.find((card) => card.id === postId) || null;
   }, [postId]);
-  const basePost = localPost || (remotePost?.id === postId ? remotePost : null);
+  const basePost = (remotePost?.id === postId ? remotePost : null) || localPost;
   const post = useMemo(
     () => (
       basePost
@@ -174,7 +174,7 @@ export default function PostDetailPage() {
   );
 
   useEffect(() => {
-    if (!postId || localPost) {
+    if (!postId) {
       return;
     }
 

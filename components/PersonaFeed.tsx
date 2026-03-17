@@ -82,7 +82,7 @@ function updateFeedCache(incoming: Card[], savedCards?: Card[]) {
   const uploads = readStoredCards<Card>("persona:uploads");
   const existing = readStoredCards<Card>("persona:feed_cache");
   const saved = Array.isArray(savedCards) ? savedCards : readJSON<Card[]>("persona:saved", []);
-  const merged = [...uploads, ...incoming, ...saved, ...existing].filter(
+  const merged = [...incoming, ...uploads, ...saved, ...existing].filter(
     (card) => card && typeof card.id === "string" && card.id.trim(),
   );
   writeStoredCards("persona:feed_cache", dedupeCardsByIdNewestFirst(merged, 200));
