@@ -7,6 +7,7 @@ import { upload } from "@vercel/blob/client";
 import { useAuth, useUser } from "@clerk/nextjs";
 import PersonaHeader from "@/components/PersonaHeader";
 import { prependCardToStorage } from "@/lib/feedCache";
+import { supabase } from "@/lib/supabase";
 import { buildIdentityFirstTags, sanitizeContentTags } from "@/lib/tags";
 
 const OPTIONS = [
@@ -439,6 +440,30 @@ export default function UploadPage() {
         creator_avatar: String(cardData.cards[0]?.creator_avatar || creatorAvatar || ""),
         creator_id: String(cardData.cards[0]?.creator_id || creatorId || ""),
       };
+      const blobUrl = uploadedImageUrl;
+      const noteToUse = finalTitle;
+      const mergedTags = finalTags;
+      const newPost = {
+        id: crypto.randomUUID(),
+        creator_id: user?.id || "",
+        creator_handle: user?.username || user?.primaryEmailAddress?.emailAddress || "user",
+        creator_name: user?.fullName || "",
+        creator_avatar: user?.imageUrl || "",
+        image_url: blobUrl,
+        caption_short: noteToUse || "Untitled",
+        caption_long: noteToUse || "",
+        tags: mergedTags,
+        source: "community" as const,
+      };
+
+      const { error } = await supabase
+        .from("posts")
+        .insert(newPost);
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+      }
+
       prependCardToStorage("persona:uploads", newCard);
       prependCardToStorage("persona:feed_cache", newCard);
 
