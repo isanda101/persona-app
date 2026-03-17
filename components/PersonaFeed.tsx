@@ -208,18 +208,38 @@ async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
         const normalized = normalizeSupabasePost(item);
         if (!normalized) return null;
 
-        const { count, error: countError } = await supabase
+        const { count: likesCount, error: likesCountError } = await supabase
           .from("likes")
           .select("*", { count: "exact", head: true })
           .eq("post_id", normalized.id);
 
-        if (countError) {
-          console.error("Supabase likes count fetch error:", countError);
+        if (likesCountError) {
+          console.error("Supabase likes count fetch error:", likesCountError);
+        }
+
+        const { count: commentsCount, error: commentsCountError } = await supabase
+          .from("comments")
+          .select("*", { count: "exact", head: true })
+          .eq("post_id", normalized.id);
+
+        if (commentsCountError) {
+          console.error("Supabase comments count fetch error:", commentsCountError);
+        }
+
+        const { count: collectionsCount, error: collectionsCountError } = await supabase
+          .from("collections")
+          .select("*", { count: "exact", head: true })
+          .eq("post_id", normalized.id);
+
+        if (collectionsCountError) {
+          console.error("Supabase collections count fetch error:", collectionsCountError);
         }
 
         return {
           ...normalized,
-          likes_count: count ?? 0,
+          likes_count: likesCount ?? 0,
+          comments_count: commentsCount ?? 0,
+          collections_count: collectionsCount ?? 0,
         };
       }),
     );

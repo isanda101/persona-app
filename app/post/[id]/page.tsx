@@ -208,21 +208,45 @@ export default function PostDetailPage() {
         return;
       }
 
-      const { count, error: countError } = await supabase
+      const { count: likesCount, error: likesCountError } = await supabase
         .from("likes")
         .select("*", { count: "exact", head: true })
         .eq("post_id", normalized.id);
 
       if (cancelled) return;
 
-      if (countError) {
-        console.error("Supabase likes count fetch error:", countError);
+      if (likesCountError) {
+        console.error("Supabase likes count fetch error:", likesCountError);
+      }
+
+      const { count: commentsCount, error: commentsCountError } = await supabase
+        .from("comments")
+        .select("*", { count: "exact", head: true })
+        .eq("post_id", normalized.id);
+
+      if (cancelled) return;
+
+      if (commentsCountError) {
+        console.error("Supabase comments count fetch error:", commentsCountError);
+      }
+
+      const { count: collectionsCount, error: collectionsCountError } = await supabase
+        .from("collections")
+        .select("*", { count: "exact", head: true })
+        .eq("post_id", normalized.id);
+
+      if (cancelled) return;
+
+      if (collectionsCountError) {
+        console.error("Supabase collections count fetch error:", collectionsCountError);
       }
 
       setRemotePost({
         ...normalized,
         source: "community",
-        likes_count: count ?? 0,
+        likes_count: likesCount ?? 0,
+        comments_count: commentsCount ?? 0,
+        collections_count: collectionsCount ?? 0,
       });
       setIsLoadingRemotePost(false);
     }
