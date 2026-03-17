@@ -73,7 +73,7 @@ export function readComments(): CommentsMap {
       if (!postId.trim() || !Array.isArray(value)) continue;
       out[postId] = value
         .map((item) => normalizeComment(item))
-        .filter((item) => item.id && item.text);
+        .filter((item): item is PersonaComment => Boolean(item && item.id && item.text));
     }
     return out;
   } catch {
