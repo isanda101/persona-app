@@ -210,57 +210,23 @@ async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
     }
 
     if (!Array.isArray(data)) return [];
-
-    const communityPosts: (Card | null)[] = await Promise.all(
-      data.map(async (item) => {
-        const normalized = normalizeSupabasePost(item);
-        if (!normalized) return null;
-
-        const { count: likesCount, error: likesCountError } = await supabase
-          .from("likes")
-          .select("*", { count: "exact", head: true })
-          .eq("post_id", normalized.id);
-
-        if (likesCountError) {
-          console.error("Supabase likes count fetch error:", likesCountError);
-        }
-
-        const { count: commentsCount, error: commentsCountError } = await supabase
-          .from("comments")
-          .select("*", { count: "exact", head: true })
-          .eq("post_id", normalized.id);
-
-        if (commentsCountError) {
-          console.error("Supabase comments count fetch error:", commentsCountError);
-        }
-
-        const { count: collectionsCount, error: collectionsCountError } = await supabase
-          .from("collections")
-          .select("*", { count: "exact", head: true })
-          .eq("post_id", normalized.id);
-
-        if (collectionsCountError) {
-          console.error("Supabase collections count fetch error:", collectionsCountError);
-        }
-
-        return {
-          ...normalized,
-          likes_count: likesCount ?? 0,
-          comments_count: commentsCount ?? 0,
-          collections_count: collectionsCount ?? 0,
-        };
-      }),
-    );
-
-    const filteredCommunityPosts: Card[] = communityPosts.filter(
-      (item): item is Card => item !== null,
-    );
-
-    return filteredCommunityPosts;
+    return data
+      .map((item) => normalizeSupabasePost(item))
+      .filter((item): item is Card => item !== null);
   } catch (error) {
     console.error("Failed to fetch Supabase posts", error);
     return [];
   }
+}
+
+function countByPostId(rows: Array<{ post_id?: string | null }>) {
+  const counts: Record<string, number> = {};
+  for (const row of rows) {
+    const postId = String(row.post_id || "").trim();
+    if (!postId) continue;
+    counts[postId] = (counts[postId] || 0) + 1;
+  }
+  return counts;
 }
 
 export default function PersonaFeed() {
@@ -520,6 +486,61 @@ export default function PersonaFeed() {
     )));
   }
 
+  async function hydrateCardCounts(posts: Card[]) {
+    const postIds = Array.from(new Set(
+      posts.map((post) => String(post.id || "").trim()).filter(Boolean),
+    ));
+    if (!postIds.length) return;
+    const postIdSet = new Set(postIds);
+
+    try {
+      const [
+        { data: likes, error: likesError },
+        { data: comments, error: commentsError },
+        { data: collections, error: collectionsError },
+      ] = await Promise.all([
+        supabase
+          .from("likes")
+          .select("post_id")
+          .in("post_id", postIds),
+        supabase
+          .from("comments")
+          .select("post_id")
+          .in("post_id", postIds),
+        supabase
+          .from("collections")
+          .select("post_id")
+          .in("post_id", postIds),
+      ]);
+
+      if (likesError) {
+        console.error("Supabase likes batch fetch error:", likesError);
+      }
+      if (commentsError) {
+        console.error("Supabase comments batch fetch error:", commentsError);
+      }
+      if (collectionsError) {
+        console.error("Supabase collections batch fetch error:", collectionsError);
+      }
+
+      const likeCounts = countByPostId(Array.isArray(likes) ? likes : []);
+      const commentCounts = countByPostId(Array.isArray(comments) ? comments : []);
+      const collectionCounts = countByPostId(Array.isArray(collections) ? collections : []);
+
+      setCards((prev) => prev.map((card) => {
+        if (!postIdSet.has(card.id)) return card;
+        return {
+          ...card,
+          likes_count: likeCounts[card.id] ?? 0,
+          comments_count: commentCounts[card.id] ?? 0,
+          collections_count: collectionCounts[card.id] ?? 0,
+        };
+      }));
+    } catch (error) {
+      console.error("Failed to hydrate feed counts", error);
+    }
+  }
+
   function isOwnedByCurrentUser(card?: Card) {
     if (!card || !user) return false;
     const creatorId = String(card.creator_id || "").trim();
@@ -696,6 +717,7 @@ export default function PersonaFeed() {
       setExpanded(false);
       cursorRef.current = 0;
       setCursor(0);
+      void hydrateCardCounts(replaceCards);
       return;
     }
 
@@ -707,6 +729,7 @@ export default function PersonaFeed() {
     addSeenFromCards(deduped);
     cursorRef.current = nextCursor;
     setCursor(nextCursor);
+    void hydrateCardCounts(deduped);
   }
 
   async function loadMoreIfNeeded(nextIndex: number) {
