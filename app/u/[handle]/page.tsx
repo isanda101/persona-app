@@ -30,6 +30,12 @@ type ParsedLikes = {
   cards: CardItem[];
 };
 
+type ProfileStats = {
+  posts: number | null;
+  collected: number | null;
+  followingTags: number | null;
+};
+
 function safeParseJSON<T>(raw: string | null, fallback: T): T {
   if (!raw) return fallback;
   try {
@@ -307,6 +313,11 @@ export default function UserHandlePage() {
   const [isLoadingPosted, setIsLoadingPosted] = useState(false);
   const [postedError, setPostedError] = useState<string | null>(null);
   const [postDeleteError, setPostDeleteError] = useState<string | null>(null);
+  const [profileStats, setProfileStats] = useState<ProfileStats>({
+    posts: null,
+    collected: null,
+    followingTags: null,
+  });
   const [cachedItems, setCachedItems] = useState<CardItem[]>(() => collectCachedCards());
   const [likedCardCache, setLikedCardCache] = useState<CardItem[]>(() => {
     if (typeof window === "undefined") return [];
@@ -337,6 +348,72 @@ export default function UserHandlePage() {
         console.error("Failed to fetch followed tags", error);
         setFollowedTags(readFollowedTags());
       });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, isSignedIn, userId]);
+
+  useEffect(() => {
+    if (!isOwnProfile || !isSignedIn || !userId) {
+      setProfileStats({
+        posts: null,
+        collected: null,
+        followingTags: null,
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadProfileStats() {
+      const [
+        { count: postsCount, error: postsError },
+        { count: collectedCount, error: collectedError },
+        { count: followingTagsCount, error: followingTagsError },
+      ] = await Promise.all([
+        supabase
+          .from("posts")
+          .select("*", { count: "exact", head: true })
+          .eq("creator_id", userId),
+        supabase
+          .from("collections")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId),
+        supabase
+          .from("followed_tags")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", userId),
+      ]);
+
+      if (cancelled) return;
+
+      if (postsError) {
+        console.error("Could not load posts count", postsError);
+      }
+      if (collectedError) {
+        console.error("Could not load collected count", collectedError);
+      }
+      if (followingTagsError) {
+        console.error("Could not load followed tags count", followingTagsError);
+      }
+
+      setProfileStats({
+        posts: postsCount ?? 0,
+        collected: collectedCount ?? 0,
+        followingTags: followingTagsCount ?? 0,
+      });
+    }
+
+    loadProfileStats().catch((error) => {
+      if (cancelled) return;
+      console.error("Could not load profile stats", error);
+      setProfileStats({
+        posts: 0,
+        collected: 0,
+        followingTags: 0,
+      });
+    });
 
     return () => {
       cancelled = true;
@@ -716,6 +793,25 @@ export default function UserHandlePage() {
                         Manage avatar
                       </Link>
                     </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-gray-200 bg-white px-4 py-4">
+                  <div className="grid grid-cols-3 gap-3 text-center">
+                    {[
+                      { label: "Posts", value: profileStats.posts },
+                      { label: "Collected", value: profileStats.collected },
+                      { label: "Following Tags", value: profileStats.followingTags },
+                    ].map((stat) => (
+                      <div key={stat.label}>
+                        <div className="text-xl font-semibold text-black">
+                          {stat.value ?? "—"}
+                        </div>
+                        <div className="mt-1 text-[11px] uppercase tracking-wide text-gray-500">
+                          {stat.label}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
