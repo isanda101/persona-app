@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
+import EmptyState from "@/components/EmptyState";
 import {
   ensureEngagement,
   getEngagement,
@@ -1105,19 +1106,19 @@ export default function PersonaFeed() {
 
     return (
       <div className="min-h-[70svh] px-6 py-10 flex items-center justify-center">
-        <div className="w-full max-w-sm rounded-3xl border border-gray-200 bg-white p-6 text-center shadow-sm">
-          <div className="text-lg font-semibold text-black">No posts yet for your taste graph.</div>
-          <div className="mt-2 text-sm text-gray-600">
-            Follow tags or post your first find to start shaping the feed.
-          </div>
-          <div className="mt-5 flex items-center justify-center gap-2">
-            <Link href="/taste" className="rounded-full border border-gray-300 px-4 py-2 text-sm text-gray-700">
-              Follow tags
-            </Link>
-            <Link href="/upload" className="rounded-full bg-black px-4 py-2 text-sm text-white">
-              Post a find
-            </Link>
-          </div>
+        <div className="w-full max-w-sm">
+          <EmptyState
+            title="No posts yet for your taste graph."
+            body="Follow tags or post your first find to start shaping your feed."
+            secondaryAction={{ label: "Explore tags", href: "/search", variant: "secondary" }}
+            primaryAction={{
+              label: "Post",
+              href: isSignedIn
+                ? "/upload"
+                : `/sign-in?redirect_url=${encodeURIComponent("/")}`,
+              variant: "primary",
+            }}
+          />
         </div>
       </div>
     );

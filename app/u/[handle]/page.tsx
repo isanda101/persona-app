@@ -5,6 +5,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
 import { Bookmark, Grid3X3, Heart } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 import PersonaHeader from "@/components/PersonaHeader";
 import { fetchFollowedTagsForUser, readFollowedTags } from "@/lib/followedTags";
 import { supabase } from "@/lib/supabase";
@@ -172,21 +173,29 @@ function isTabKey(value: string): value is TabKey {
 }
 
 type GridPanelProps = {
-  emptyText: string;
   items: CardItem[];
   onRemove?: (card: CardItem) => void;
   currentUserId?: string;
   currentUsername?: string;
   currentUserImage?: string;
+  emptyState?: {
+    title: string;
+    body: string;
+    primaryAction?: {
+      href: string;
+      label: string;
+      variant?: "primary" | "secondary";
+    };
+  };
 };
 
 function GridPanel({
-  emptyText,
   items,
   onRemove,
   currentUserId,
   currentUsername,
   currentUserImage,
+  emptyState,
 }: GridPanelProps) {
   const router = useRouter();
 
@@ -205,7 +214,14 @@ function GridPanel({
 
   return (
     <section className="mt-4">
-      {items.length === 0 ? <div className="text-sm text-gray-500">{emptyText}</div> : null}
+      {items.length === 0 && emptyState ? (
+        <EmptyState
+          title={emptyState.title}
+          body={emptyState.body}
+          primaryAction={emptyState.primaryAction}
+          className="px-5 py-6"
+        />
+      ) : null}
       {items.length > 0 ? (
         <div className="grid grid-cols-2 gap-3">
           {items.map((card) => (
@@ -966,12 +982,16 @@ export default function UserHandlePage() {
                         <div className="mt-4 text-sm text-red-600">{postDeleteError}</div>
                       ) : null}
                       <GridPanel
-                        emptyText="No posts yet."
                         items={postedItems}
                         onRemove={removePosted}
                         currentUserId={String(user?.id || "")}
                         currentUsername={user?.username || ""}
                         currentUserImage={user?.imageUrl || ""}
+                        emptyState={{
+                          title: "No posts yet.",
+                          body: "Share your first find with Persona.",
+                          primaryAction: { label: "Create post", href: "/upload", variant: "primary" },
+                        }}
                       />
                     </>
                   )
@@ -984,24 +1004,32 @@ export default function UserHandlePage() {
                     <div className="mt-4 text-sm text-red-600">{collectedError}</div>
                   ) : (
                     <GridPanel
-                      emptyText="No collected items yet."
                       items={collectedItems}
                       onRemove={removeCollected}
                       currentUserId={String(user?.id || "")}
                       currentUsername={user?.username || ""}
                       currentUserImage={user?.imageUrl || ""}
+                      emptyState={{
+                        title: "No collected posts yet.",
+                        body: "Save posts you want to revisit.",
+                        primaryAction: { label: "Browse feed", href: "/", variant: "secondary" },
+                      }}
                     />
                   )
                 ) : null}
 
                 {activeTab === "likes" ? (
                   <GridPanel
-                    emptyText="You haven't liked any items yet."
                     items={likedItems}
                     onRemove={removeLiked}
                     currentUserId={String(user?.id || "")}
                     currentUsername={user?.username || ""}
                     currentUserImage={user?.imageUrl || ""}
+                    emptyState={{
+                      title: "No liked posts yet.",
+                      body: "Like posts to build your taste profile.",
+                      primaryAction: { label: "Browse feed", href: "/", variant: "secondary" },
+                    }}
                   />
                 ) : null}
 

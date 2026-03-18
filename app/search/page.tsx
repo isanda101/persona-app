@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { SignInButton, useUser } from "@clerk/nextjs";
+import EmptyState from "@/components/EmptyState";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
   fetchFollowedTagsForUser,
@@ -463,7 +464,14 @@ export default function SearchPage() {
             </div>
           ) : null}
 
-          {isEmpty ? <div className="text-sm text-gray-500">No results found.</div> : null}
+          {isEmpty ? (
+            <EmptyState
+              title="No results found."
+              body="Try a different tag, brand, or style."
+              hint="Examples: Rick Owens, Vintage Watches, Japanese Denim"
+              className="mt-2"
+            />
+          ) : null}
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SignInButton, useUser } from "@clerk/nextjs";
+import EmptyState from "@/components/EmptyState";
 import PersonaHeader from "@/components/PersonaHeader";
 import {
   fetchFollowedTagsForUser,
@@ -240,7 +241,21 @@ export default function TagPage() {
             ))}
           </div>
         ) : (
-          <div className="mt-6 text-sm text-gray-500">No posts found for this tag yet.</div>
+          <div className="mt-6">
+            <EmptyState
+              title="No posts found for this tag yet."
+              body="Follow this tag to shape your feed as new posts appear."
+              primaryAction={
+                relatedTags.length
+                  ? {
+                    label: "Explore related tags",
+                    href: `/t/${encodeURIComponent(slugifyTag(relatedTags[0]))}`,
+                    variant: "secondary",
+                  }
+                  : undefined
+              }
+            />
+          </div>
         )}
       </div>
     </div>
