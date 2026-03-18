@@ -293,6 +293,9 @@ export default function UserHandlePage() {
   const [usernameInput, setUsernameInput] = useState("");
   const [usernameError, setUsernameError] = useState("");
   const [isSavingUsername, setIsSavingUsername] = useState(false);
+  const [bio, setBio] = useState("");
+  const [bioDraft, setBioDraft] = useState("");
+  const [isEditingBio, setIsEditingBio] = useState(false);
   const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
   const initialTabValue = String(searchParams?.get("tab") || "").toLowerCase();
@@ -303,6 +306,19 @@ export default function UserHandlePage() {
     if (!isTabKey(next)) return;
     setActiveTab(next);
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!isOwnProfile) {
+      setBio("");
+      setBioDraft("");
+      setIsEditingBio(false);
+      return;
+    }
+
+    const storedBio = String(localStorage.getItem("persona:bio") || "").trim();
+    setBio(storedBio);
+    setBioDraft(storedBio);
+  }, [isOwnProfile]);
 
   const [followedTags, setFollowedTags] = useState<string[]>(() => readFollowedTags());
 
@@ -622,6 +638,14 @@ export default function UserHandlePage() {
     }
   }
 
+  function saveBio() {
+    const nextBio = String(bioDraft || "").trim().slice(0, 160);
+    localStorage.setItem("persona:bio", nextBio);
+    setBio(nextBio);
+    setBioDraft(nextBio);
+    setIsEditingBio(false);
+  }
+
   const removeCollected = async (card: CardItem) => {
     if (!isSignedIn || !userId) {
       setCollectedItems((prev) => {
@@ -792,12 +816,54 @@ export default function UserHandlePage() {
                       )}
                       <div className="min-w-0 flex-1">
                         <div className="text-lg font-semibold truncate">{profileIdentity}</div>
-                        <div className="mt-1 text-sm text-gray-500 truncate">Your taste graph</div>
+                        {isEditingBio ? (
+                          <div className="mt-1">
+                            <textarea
+                              value={bioDraft}
+                              onChange={(event) => setBioDraft(String(event.target.value || "").slice(0, 160))}
+                              rows={2}
+                              placeholder="Add a short bio"
+                              className="w-full resize-none rounded-lg border border-gray-300 px-2.5 py-2 text-sm text-gray-700 outline-none focus:ring-2 focus:ring-black/10"
+                            />
+                            <div className="mt-2 flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={saveBio}
+                                className="rounded-full border border-gray-300 px-3 py-1 text-xs text-gray-700 hover:text-black"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setBioDraft(bio);
+                                  setIsEditingBio(false);
+                                }}
+                                className="rounded-full px-2 py-1 text-xs text-gray-500 hover:text-black"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-1 flex items-start gap-2">
+                            <div className="min-w-0 flex-1 text-sm text-gray-600 leading-5 line-clamp-2">
+                              {bio || "Add a short bio"}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingBio(true)}
+                              className="shrink-0 rounded-full border border-gray-300 px-2.5 py-1 text-[11px] text-gray-600 hover:text-black hover:border-gray-400"
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        )}
                         <Link
                           href="/user-profile"
                           className="inline-block mt-2 text-xs text-gray-500 hover:text-gray-700 active:text-black"
                         >
-                          Manage avatar
+                          Manage Profile
                         </Link>
                       </div>
                     </div>
