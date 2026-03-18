@@ -776,16 +776,22 @@ export default function UserHandlePage() {
             <h1 className="text-2xl font-semibold mt-2">Profile</h1>
             {ownUsername ? (
               <>
-                <div className="mt-4 rounded-lg border border-gray-200 p-4">
-                  <div className="flex items-center gap-3">
+                <div className="mt-4 rounded-2xl border border-gray-200 bg-white px-4 py-4">
+                  <div className="flex items-center gap-4">
                     {user?.imageUrl ? (
-                      <img src={user.imageUrl} alt={profileName} className="h-20 w-20 rounded-full object-cover" />
+                      <img
+                        src={user.imageUrl}
+                        alt={profileName}
+                        className="h-16 w-16 rounded-full object-cover shrink-0"
+                      />
                     ) : (
-                      <div className="h-20 w-20 rounded-full bg-gray-200" />
+                      <div className="h-16 w-16 rounded-full bg-gray-200 text-gray-700 flex items-center justify-center text-xl font-semibold shrink-0">
+                        {fallbackLetter(ownUsername, profileName)}
+                      </div>
                     )}
-                    <div>
-                      <div className="text-lg font-semibold">{profileIdentity}</div>
-                      <div className="text-sm text-gray-600 mt-1">{profileName}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-lg font-semibold truncate">{profileIdentity}</div>
+                      <div className="mt-1 text-sm text-gray-500 truncate">Your taste graph</div>
                       <Link
                         href="/user-profile"
                         className="inline-block mt-2 text-xs text-gray-500 hover:text-gray-700 active:text-black"
@@ -794,20 +800,18 @@ export default function UserHandlePage() {
                       </Link>
                     </div>
                   </div>
-                </div>
 
-                <div className="mt-4 rounded-2xl border border-gray-200 bg-white px-4 py-4">
-                  <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                     {[
                       { label: "Posts", value: profileStats.posts },
                       { label: "Collected", value: profileStats.collected },
-                      { label: "Following Tags", value: profileStats.followingTags },
+                      { label: "Tags", value: profileStats.followingTags },
                     ].map((stat) => (
                       <div key={stat.label}>
-                        <div className="text-xl font-semibold text-black">
+                        <div className="text-lg font-semibold text-black">
                           {stat.value ?? "—"}
                         </div>
-                        <div className="mt-1 text-[11px] uppercase tracking-wide text-gray-500">
+                        <div className="mt-1 text-[11px] text-gray-500">
                           {stat.label}
                         </div>
                       </div>
