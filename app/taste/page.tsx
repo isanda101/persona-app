@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
+import { normalizeTag } from "@/lib/tags";
+import { supabase } from "@/lib/supabase";
+import { writeFollowedTags } from "@/lib/followedTags";
 
 const OPTIONS = [
   { group: "Luxury", items: ["Gucci", "Louis Vuitton", "Prada", "Tommy Hilfiger", "Ralph Lauren"] },
@@ -44,14 +48,60 @@ const SUGGESTIONS: Record<string, string[]> = {
 
 export default function TastePage() {
   const router = useRouter();
+  const { isLoaded, isSignedIn, user } = useUser();
   const [tastes, setTastes] = useState<string[]>(INITIAL_TASTES);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     const raw = localStorage.getItem("persona:taste");
-    if (raw) setSelected(JSON.parse(raw));
+    const localSelected = raw ? (JSON.parse(raw) as unknown) : [];
+    const nextSelected = Array.isArray(localSelected)
+      ? localSelected.map((item) => String(item || "").trim()).filter(Boolean)
+      : [];
+
+    if (nextSelected.length) {
+      setSelected(nextSelected);
+      setTastes((prev) => Array.from(new Set([...prev, ...nextSelected])));
+    }
   }, []);
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !user?.id) return;
+
+    let cancelled = false;
+
+    async function loadFollowedTags() {
+      const { data, error } = await supabase
+        .from("followed_tags")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (cancelled || error || !Array.isArray(data)) return;
+
+      const remoteTags = data
+        .map((item) => String((item as { tag?: string }).tag || "").trim())
+        .filter(Boolean);
+
+      if (!remoteTags.length) return;
+
+      setSelected((prev) => Array.from(new Set([...prev, ...remoteTags])));
+      setTastes((prev) => Array.from(new Set([...prev, ...remoteTags])));
+      localStorage.setItem("persona:taste", JSON.stringify(remoteTags));
+      writeFollowedTags(remoteTags);
+    }
+
+    loadFollowedTags().catch(() => {
+      // Keep local selection if Supabase lookup fails.
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoaded, isSignedIn, user?.id]);
 
   const toggleTaste = (item: string) => {
     setSelected((prev) =>
@@ -59,9 +109,57 @@ export default function TastePage() {
     );
   };
 
-  const save = () => {
-    localStorage.setItem("persona:taste", JSON.stringify(selected));
-    router.push("/");
+  const canContinue = selected.length >= 3;
+
+  const save = async () => {
+    if (!canContinue || isSaving) return;
+
+    const nextSelected = Array.from(
+      new Map(
+        selected
+          .map((item) => String(item || "").trim())
+          .filter(Boolean)
+          .map((item) => [normalizeTag(item), item]),
+      ).values(),
+    );
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      localStorage.setItem("persona:taste", JSON.stringify(nextSelected));
+      writeFollowedTags(nextSelected);
+
+      if (isSignedIn && user?.id) {
+        const { error: deleteError } = await supabase
+          .from("followed_tags")
+          .delete()
+          .eq("user_id", user.id);
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        const { error } = await supabase.from("followed_tags").insert(
+          nextSelected.map((tag) => ({
+            id: crypto.randomUUID(),
+            user_id: user.id,
+            tag,
+          })),
+        );
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      router.push("/");
+    } catch (error) {
+      console.error("Could not save tastes", error);
+      setSaveError("Could not save your tastes.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const suggestionCounts = selected.reduce((acc, item) => {
@@ -125,6 +223,7 @@ export default function TastePage() {
         <p className="text-gray-600 mt-2">
           Choose a few brands/artists. Your feed will be curated around these.
         </p>
+        <p className="text-sm text-gray-500 mt-3">Pick at least 3 to personalize your feed</p>
 
         <div className="sticky top-0 z-10 bg-white pt-4 pb-3">
           <input
@@ -275,15 +374,16 @@ export default function TastePage() {
 
         <button
           onClick={save}
-          disabled={selected.length < 3}
+          disabled={!canContinue || isSaving}
           className={`mt-8 w-full py-3 rounded-xl text-sm font-medium ${
-            selected.length < 3
+            !canContinue || isSaving
               ? "bg-gray-200 text-gray-500"
               : "bg-black text-white"
           }`}
         >
-          Continue ({selected.length}/3+)
+          {isSaving ? "Saving..." : `Continue (${selected.length}/3+)`}
         </button>
+        {saveError ? <div className="mt-3 text-sm text-red-600">{saveError}</div> : null}
       </div>
     </div>
   );
