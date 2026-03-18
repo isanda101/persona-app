@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { SignInButton, SignOutButton, SignUpButton, useUser } from "@clerk/nextjs";
+import { SignInButton, SignOutButton, SignUpButton, useClerk, useUser } from "@clerk/nextjs";
 import { Bookmark, Grid3X3, Heart } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import PersonaHeader from "@/components/PersonaHeader";
@@ -292,6 +292,7 @@ function GridPanel({
 export default function UserHandlePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { signOut } = useClerk();
   const { isSignedIn, user } = useUser();
   const params = useParams<{ handle: string }>();
 
@@ -312,6 +313,8 @@ export default function UserHandlePage() {
   const [bio, setBio] = useState("");
   const [bioDraft, setBioDraft] = useState("");
   const [isEditingBio, setIsEditingBio] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteAccountError, setDeleteAccountError] = useState<string | null>(null);
   const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
   const initialTabValue = String(searchParams?.get("tab") || "").toLowerCase();
@@ -662,6 +665,44 @@ export default function UserHandlePage() {
     setIsEditingBio(false);
   }
 
+  async function handleDeleteAccount() {
+    if (isDeletingAccount) return;
+
+    const confirmed = window.confirm("Delete your account and all Persona data?");
+    if (!confirmed) return;
+
+    setDeleteAccountError(null);
+    setIsDeletingAccount(true);
+
+    try {
+      const response = await fetch("/api/account/delete", {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not delete account.");
+      }
+
+      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
+        const key = localStorage.key(i);
+        if (!key || !key.startsWith("persona:")) continue;
+        localStorage.removeItem(key);
+      }
+
+      try {
+        await signOut({ redirectUrl: "/" });
+      } catch {
+        router.push("/");
+        router.refresh();
+      }
+    } catch (error) {
+      console.error("Could not delete account", error);
+      setDeleteAccountError("Could not delete account.");
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  }
+
   const removeCollected = async (card: CardItem) => {
     if (!isSignedIn || !userId) {
       setCollectedItems((prev) => {
@@ -920,6 +961,27 @@ export default function UserHandlePage() {
                     <span>Refine tastes</span>
                     <span className="text-gray-400">→</span>
                   </Link>
+                  <div className="mt-3 rounded-2xl border border-red-200 px-3 py-3">
+                    <div className="text-sm font-medium text-black">Delete account</div>
+                    <div className="mt-1 text-sm text-gray-600">
+                      Permanently remove your Persona account, posts, comments, likes, collections, and followed tags.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDeleteAccount}
+                      disabled={isDeletingAccount}
+                      className={`mt-3 rounded-full border px-3 py-1.5 text-xs ${
+                        isDeletingAccount
+                          ? "border-gray-200 text-gray-400"
+                          : "border-red-200 text-red-600 hover:border-red-300 hover:text-red-700"
+                      }`}
+                    >
+                      {isDeletingAccount ? "Deleting..." : "Delete account"}
+                    </button>
+                    {deleteAccountError ? (
+                      <div className="mt-2 text-xs text-red-600">{deleteAccountError}</div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="mt-4">
