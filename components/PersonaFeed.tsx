@@ -31,6 +31,7 @@ import {
   readStoredCards,
   writeStoredCards,
 } from "@/lib/feedCache";
+import { clearSignedInPersonaCache } from "@/lib/localCache";
 import { supabase } from "@/lib/supabase";
 
 type Card = {
@@ -299,10 +300,10 @@ export default function PersonaFeed() {
     if (!normalizedPrimary) return [];
 
     const sourceBuckets = [
-      ...readJSON<unknown[]>("persona:uploads", []),
-      ...readJSON<unknown[]>("persona:saved", []),
-      ...readJSON<unknown[]>("persona:collection", []),
-      ...readJSON<unknown[]>("persona:feed_cache", []),
+      ...(!isSignedIn ? readJSON<unknown[]>("persona:uploads", []) : []),
+      ...(!isSignedIn ? readJSON<unknown[]>("persona:saved", []) : []),
+      ...(!isSignedIn ? readJSON<unknown[]>("persona:collection", []) : []),
+      ...(!isSignedIn ? readJSON<unknown[]>("persona:feed_cache", []) : []),
       ...cards,
     ];
 
@@ -325,7 +326,7 @@ export default function PersonaFeed() {
     if (!matching.length) return [];
 
     return getRelatedTagsFromCards(matching, primaryTag, 2);
-  }, [active, cards, displayTags]);
+  }, [active, cards, displayTags, isSignedIn]);
   const feedPreviewText = useMemo(
     () => getFeedPreview(String(active?.caption_long || ""), 260),
     [active],
@@ -334,6 +335,12 @@ export default function PersonaFeed() {
   useEffect(() => {
     setEngagement(readEngagement());
   }, []);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      clearSignedInPersonaCache();
+    }
+  }, [isSignedIn, user?.id]);
 
   useEffect(() => {
     function refreshEngagementFromStorage() {
@@ -394,8 +401,7 @@ export default function PersonaFeed() {
 
       if (error) {
         console.error("Supabase collections fetch error:", error);
-        const savedAll = readJSON<Card[]>("persona:saved", []);
-        setSavedIds(savedAll.map((card) => card.id));
+        setSavedIds([]);
         return;
       }
 
@@ -408,8 +414,7 @@ export default function PersonaFeed() {
     loadSavedState().catch((error) => {
       if (cancelled) return;
       console.error("Failed to fetch Supabase collections", error);
-      const savedAll = readJSON<Card[]>("persona:saved", []);
-      setSavedIds(savedAll.map((card) => card.id));
+      setSavedIds([]);
     });
 
     return () => {
@@ -561,7 +566,8 @@ export default function PersonaFeed() {
   }
 
   useEffect(() => {
-    if (!isSignedIn || !user) return;
+    if (isSignedIn) return;
+    if (!user) return;
     const avatar = String(user.imageUrl || "").trim();
     if (!avatar) return;
     const username = normalizeHandle(user.username || "");
@@ -646,6 +652,7 @@ export default function PersonaFeed() {
     tastes: string[],
     styleKeywords: string[],
   ): Card[] {
+    if (isSignedIn) return [];
     let uploads: unknown[] = [];
     try {
       uploads = readStoredCards("persona:uploads");
@@ -694,10 +701,14 @@ export default function PersonaFeed() {
           .map((tag) => [normalizeFollowedTag(tag), tag]),
       ).values(),
     );
-    const savedSource = savedAll ?? readJSON<Card[]>("persona:saved", []);
+    const savedSource = isSignedIn
+      ? cards.filter((card) => savedIds.includes(card.id))
+      : (savedAll ?? readJSON<Card[]>("persona:saved", []));
     const batchLimit = Math.max(1, Math.min(Number(options?.limit || (mode === "replace" ? 5 : 12)), 12));
     const uploadCards = selectUploadsForFeed(tastes, []);
-    const cachedRealCards = readStoredCards<Card>("persona:feed_cache").filter(isRealFeedCard);
+    const cachedRealCards = isSignedIn
+      ? []
+      : readStoredCards<Card>("persona:feed_cache").filter(isRealFeedCard);
     const communityPosts = Array.isArray(options?.communityPosts)
       ? options.communityPosts.filter(isRealFeedCard)
       : (await fetchCommunityPostsFromSupabase(60)).filter(isRealFeedCard);
@@ -707,7 +718,9 @@ export default function PersonaFeed() {
       200,
     );
 
-    updateFeedCache(realPool, savedSource);
+    if (!isSignedIn) {
+      updateFeedCache(realPool, savedSource);
+    }
     setLoadError(null);
 
     if (mode === "replace") {
@@ -760,13 +773,13 @@ export default function PersonaFeed() {
     // Initial load: generate feed using taste + existing saves
     async function loadInitial() {
       setIsLoading(true);
-      const savedAll = readJSON<Card[]>("persona:saved", []);
+      const savedAll = isSignedIn ? cards.filter((card) => savedIds.includes(card.id)) : readJSON<Card[]>("persona:saved", []);
       setSavedIds(savedAll.map((c) => c.id));
 
       const communityPosts = await fetchCommunityPostsFromSupabase(20);
 
-      const uploads = readStoredCards<Card>("persona:uploads");
-      const cached = readStoredCards<Card>("persona:feed_cache");
+      const uploads = isSignedIn ? [] : readStoredCards<Card>("persona:uploads");
+      const cached = isSignedIn ? [] : readStoredCards<Card>("persona:feed_cache");
       const fastCards = dedupeById([...communityPosts, ...uploads, ...cached], 5);
       if (fastCards.length) {
         setCards(fastCards);
@@ -793,11 +806,11 @@ export default function PersonaFeed() {
     const cachedDNA = readJSON<StyleDNA | null>("persona:style_dna", null);
     if (cachedDNA?.one_liner) setDna(cachedDNA);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isSignedIn, user?.id]);
 
   async function retryLoad() {
     setIsLoading(true);
-    const savedAll = readJSON<Card[]>("persona:saved", []);
+    const savedAll = isSignedIn ? cards.filter((card) => savedIds.includes(card.id)) : readJSON<Card[]>("persona:saved", []);
     setSavedIds(savedAll.map((c) => c.id));
     const communityPosts = await fetchCommunityPostsFromSupabase(20);
 
@@ -822,7 +835,9 @@ export default function PersonaFeed() {
 
     if (!user?.id) return;
 
-    const savedAll = readJSON<Card[]>("persona:saved", []);
+    const savedAll = isSignedIn
+      ? cards.filter((entry) => savedIds.includes(entry.id))
+      : readJSON<Card[]>("persona:saved", []);
     const exists = savedIds.includes(card.id);
     const nextSaved = exists
       ? savedAll.filter((c) => c.id !== card.id)
@@ -849,7 +864,9 @@ export default function PersonaFeed() {
       return;
     }
 
-    writeJSON("persona:saved", nextSaved);
+    if (!isSignedIn) {
+      writeJSON("persona:saved", nextSaved);
+    }
     setSavedIds(nextSaved.map((c) => c.id));
     const nextCollectionsCount = exists
       ? Math.max(0, Number(card.collections_count ?? 0) - 1)

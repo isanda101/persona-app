@@ -8,6 +8,7 @@ import { Bookmark, Grid3X3, Heart } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import PersonaHeader from "@/components/PersonaHeader";
 import { fetchFollowedTagsForUser, readFollowedTags } from "@/lib/followedTags";
+import { clearAllPersonaCache, clearSignedInPersonaCache } from "@/lib/localCache";
 import { supabase } from "@/lib/supabase";
 import { slugifyTag } from "@/lib/tags";
 
@@ -341,7 +342,7 @@ export default function UserHandlePage() {
 
   const [followedTags, setFollowedTags] = useState<string[]>(() => readFollowedTags());
 
-  const [collectedItems, setCollectedItems] = useState<CardItem[]>(() => readCardArray("persona:saved"));
+  const [collectedItems, setCollectedItems] = useState<CardItem[]>([]);
   const [isLoadingCollected, setIsLoadingCollected] = useState(false);
   const [collectedError, setCollectedError] = useState<string | null>(null);
   const [postedItems, setPostedItems] = useState<CardItem[]>([]);
@@ -353,17 +354,16 @@ export default function UserHandlePage() {
     collected: null,
     followingTags: null,
   });
-  const [cachedItems, setCachedItems] = useState<CardItem[]>(() => collectCachedCards());
-  const [likedCardCache, setLikedCardCache] = useState<CardItem[]>(() => {
-    if (typeof window === "undefined") return [];
-    const likesRaw = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
-    return parseLikes(likesRaw).cards;
-  });
-  const [likedIds, setLikedIds] = useState<string[]>(() => {
-    if (typeof window === "undefined") return [];
-    const likesRaw = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
-    return parseLikes(likesRaw).ids;
-  });
+  const [cachedItems, setCachedItems] = useState<CardItem[]>([]);
+  const [likedCardCache, setLikedCardCache] = useState<CardItem[]>([]);
+  const [likedIds, setLikedIds] = useState<string[]>([]);
+  const [publicPosts, setPublicPosts] = useState<CardItem[]>([]);
+
+  useEffect(() => {
+    if (isSignedIn) {
+      clearSignedInPersonaCache();
+    }
+  }, [isSignedIn, userId]);
 
   useEffect(() => {
     if (!isOwnProfile || !isSignedIn || !userId) {
@@ -456,7 +456,13 @@ export default function UserHandlePage() {
   }, [isOwnProfile, isSignedIn, userId]);
 
   useEffect(() => {
-    if (!isOwnProfile || !isSignedIn) return;
+    if (isSignedIn) {
+      setLikedIds([]);
+      setLikedCardCache([]);
+      setCachedItems([]);
+      return;
+    }
+    if (!isOwnProfile) return;
     const likesRaw = safeParseJSON<unknown>(localStorage.getItem("persona:likes"), {});
     const parsedLikes = parseLikes(likesRaw);
     setLikedIds(parsedLikes.ids);
@@ -610,24 +616,65 @@ export default function UserHandlePage() {
     return likedIds.map((id) => byId.get(id)).filter((item): item is CardItem => Boolean(item));
   }, [cachedItems, collectedItems, likedCardCache, likedIds, postedItems]);
 
-  const publicPosts = useMemo(() => {
-    if (typeof window === "undefined") return [] as CardItem[];
-    const uploads = readCardArray("persona:uploads");
-    const feedCache = readCardArray("persona:feed_cache");
-    const pool = [...uploads, ...feedCache];
-    const seen = new Set<string>();
-    const out: CardItem[] = [];
-
-    for (const card of pool) {
-      if (!card.id || seen.has(card.id)) continue;
-      const cardHandle = cleanHandle(card.creator_handle).toLowerCase();
-      if (cardHandle !== resolvedHandle.toLowerCase()) continue;
-      seen.add(card.id);
-      out.push(card);
+  useEffect(() => {
+    if (isOwnProfile) {
+      setPublicPosts([]);
+      return;
     }
 
-    return out;
-  }, [resolvedHandle]);
+    if (!isSignedIn) {
+      const uploads = readCardArray("persona:uploads");
+      const feedCache = readCardArray("persona:feed_cache");
+      const pool = [...uploads, ...feedCache];
+      const seen = new Set<string>();
+      const out: CardItem[] = [];
+
+      for (const card of pool) {
+        if (!card.id || seen.has(card.id)) continue;
+        const cardHandle = cleanHandle(card.creator_handle).toLowerCase();
+        if (cardHandle !== resolvedHandle.toLowerCase()) continue;
+        seen.add(card.id);
+        out.push(card);
+      }
+
+      setPublicPosts(out);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadPublicPosts() {
+      const { data, error } = await supabase
+        .from("posts")
+        .select("*")
+        .eq("creator_handle", resolvedHandle)
+        .order("created_at", { ascending: false });
+
+      if (cancelled) return;
+
+      if (error) {
+        console.error("Could not load public profile posts", error);
+        setPublicPosts([]);
+        return;
+      }
+
+      const nextPosts = Array.isArray(data)
+        ? data.map((item) => normalizeCard(item)).filter((item): item is CardItem => Boolean(item))
+        : [];
+
+      setPublicPosts(nextPosts);
+    }
+
+    loadPublicPosts().catch((error) => {
+      if (cancelled) return;
+      console.error("Could not load public profile posts", error);
+      setPublicPosts([]);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwnProfile, isSignedIn, resolvedHandle]);
 
   function setProfileTab(tab: TabKey) {
     setActiveTab(tab);
@@ -683,11 +730,7 @@ export default function UserHandlePage() {
         throw new Error("Could not delete account.");
       }
 
-      for (let i = localStorage.length - 1; i >= 0; i -= 1) {
-        const key = localStorage.key(i);
-        if (!key || !key.startsWith("persona:")) continue;
-        localStorage.removeItem(key);
-      }
+      clearAllPersonaCache();
 
       try {
         await signOut({ redirectUrl: "/" });

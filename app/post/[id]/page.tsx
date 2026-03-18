@@ -11,6 +11,7 @@ import {
   writeEngagement,
   type EngagementMap,
 } from "@/lib/engagement";
+import { clearSignedInPersonaCache } from "@/lib/localCache";
 import { normalizeComment, type PersonaComment } from "@/lib/comments";
 import { supabase } from "@/lib/supabase";
 import { prioritizeUploadTags, sanitizeContentTags, slugifyTag } from "@/lib/tags";
@@ -134,9 +135,7 @@ export default function PostDetailPage() {
   const params = useParams<{ id: string }>();
   const postId = decodeURIComponent(String(params?.id || ""));
   const [likes, setLikes] = useState<Record<string, boolean>>({});
-  const [savedIds, setSavedIds] = useState<string[]>(() =>
-    readCardsFromKey("persona:saved").map((card) => card.id),
-  );
+  const [savedIds, setSavedIds] = useState<string[]>([]);
   const [, setEngagement] = useState<EngagementMap>(() => readEngagement());
   const [comments, setComments] = useState<PersonaComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
@@ -149,7 +148,14 @@ export default function PostDetailPage() {
   const username = String(user?.username || "").trim().replace(/^@+/, "");
   const currentUserAvatar = String(user?.imageUrl || "").trim();
 
+  useEffect(() => {
+    if (isSignedIn) {
+      clearSignedInPersonaCache();
+    }
+  }, [isSignedIn, user?.id]);
+
   const localPost = useMemo(() => {
+    if (isSignedIn) return null;
     if (!postId || typeof window === "undefined") return null;
 
     const uploads = readCardsFromKey("persona:uploads");
@@ -159,7 +165,7 @@ export default function PostDetailPage() {
 
     const pool = [...uploads, ...collection, ...saved, ...feedCache];
     return pool.find((card) => card.id === postId) || null;
-  }, [postId]);
+  }, [isSignedIn, postId]);
   const basePost = (remotePost?.id === postId ? remotePost : null) || localPost;
   const post = useMemo(
     () => (
@@ -355,7 +361,7 @@ export default function PostDetailPage() {
 
     async function loadCollectedState() {
       if (!post?.id || !isSignedIn || !user?.id) {
-        setSavedIds([]);
+        setSavedIds(!isSignedIn ? readCardsFromKey("persona:saved").map((card) => card.id) : []);
         return;
       }
 
@@ -380,7 +386,7 @@ export default function PostDetailPage() {
     loadCollectedState().catch((error) => {
       if (cancelled) return;
       console.error("Failed to fetch Supabase collection", error);
-      setSavedIds([]);
+      setSavedIds(!isSignedIn ? readCardsFromKey("persona:saved").map((card) => card.id) : []);
     });
 
     return () => {
@@ -500,7 +506,7 @@ export default function PostDetailPage() {
     }
     if (!user?.id) return;
 
-    const saved = readCardsFromKey("persona:saved");
+    const saved = !isSignedIn ? readCardsFromKey("persona:saved") : [];
     const exists = savedIds.includes(post.id);
     const next = exists
       ? saved.filter((card) => card.id !== post.id)
@@ -527,7 +533,9 @@ export default function PostDetailPage() {
       return;
     }
 
-    localStorage.setItem("persona:saved", JSON.stringify(next));
+    if (!isSignedIn) {
+      localStorage.setItem("persona:saved", JSON.stringify(next));
+    }
     setSavedIds(next.map((card) => card.id));
     const nextCollectionsCount = exists
       ? Math.max(0, Number(post.collections_count ?? 0) - 1)
