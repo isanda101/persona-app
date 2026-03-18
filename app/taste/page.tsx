@@ -49,6 +49,7 @@ const SUGGESTIONS: Record<string, string[]> = {
 export default function TastePage() {
   const router = useRouter();
   const { isLoaded, isSignedIn, user } = useUser();
+  const userId = String(user?.id || "").trim();
   const [tastes, setTastes] = useState<string[]>(INITIAL_TASTES);
   const [selected, setSelected] = useState<string[]>([]);
   const [query, setQuery] = useState("");
@@ -69,15 +70,17 @@ export default function TastePage() {
   }, []);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user?.id) return;
-
     let cancelled = false;
 
     async function loadFollowedTags() {
+      if (!isLoaded || !isSignedIn || !userId) {
+        return;
+      }
+
       const { data, error } = await supabase
         .from("followed_tags")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
       if (cancelled || error || !Array.isArray(data)) return;
@@ -101,7 +104,7 @@ export default function TastePage() {
     return () => {
       cancelled = true;
     };
-  }, [isLoaded, isSignedIn, user?.id]);
+  }, [isLoaded, isSignedIn, userId]);
 
   const toggleTaste = (item: string) => {
     setSelected((prev) =>
@@ -130,11 +133,11 @@ export default function TastePage() {
       localStorage.setItem("persona:taste", JSON.stringify(nextSelected));
       writeFollowedTags(nextSelected);
 
-      if (isSignedIn && user?.id) {
+      if (isSignedIn && userId) {
         const { error: deleteError } = await supabase
           .from("followed_tags")
           .delete()
-          .eq("user_id", user.id);
+          .eq("user_id", userId);
 
         if (deleteError) {
           throw deleteError;
@@ -143,7 +146,7 @@ export default function TastePage() {
         const { error } = await supabase.from("followed_tags").insert(
           nextSelected.map((tag) => ({
             id: crypto.randomUUID(),
-            user_id: user.id,
+            user_id: userId,
             tag,
           })),
         );
