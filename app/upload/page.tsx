@@ -462,6 +462,52 @@ export default function UploadPage() {
 
       if (error) {
         console.error("Supabase insert error:", error);
+      } else {
+        try {
+          const postTags = Array.isArray(newPost.tags)
+            ? newPost.tags.map((tag) => String(tag || "").trim()).filter(Boolean)
+            : [];
+
+          if (postTags.length) {
+            const { data: followers } = await supabase
+              .from("followed_tags")
+              .select("user_id, tag")
+              .in("tag", postTags);
+
+            const uniqueUserIds = Array.from(
+              new Set(
+                (Array.isArray(followers) ? followers : [])
+                  .map((f) => String((f as { user_id?: string }).user_id || "").trim())
+                  .filter(Boolean),
+              ),
+            ).filter((userId) => userId !== newPost.creator_id);
+
+            if (uniqueUserIds.length) {
+              const mainTag = postTags[0] || "Style";
+
+              const { error: notificationsError } = await supabase
+                .from("notifications")
+                .insert(
+                  uniqueUserIds.map((userId) => ({
+                    id: crypto.randomUUID(),
+                    user_id: userId,
+                    actor_id: newPost.creator_id,
+                    actor_handle: newPost.creator_handle,
+                    actor_avatar: newPost.creator_avatar,
+                    type: "tag_post",
+                    post_id: newPost.id,
+                    message: `New post in ${mainTag}`,
+                  })),
+                );
+
+              if (notificationsError) {
+                console.error("Tag notification insert error:", notificationsError);
+              }
+            }
+          }
+        } catch (notificationError) {
+          console.error("Could not create tag notifications", notificationError);
+        }
       }
 
       prependCardToStorage("persona:uploads", newCard);
