@@ -36,21 +36,26 @@ function formatTimestamp(value?: string) {
 
 export default function NotificationsPage() {
   const { isSignedIn, user } = useUser();
+  const userId = String(user?.id || "").trim();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    if (!isSignedIn || !user?.id) return;
-
     let cancelled = false;
 
     async function loadNotifications() {
+      if (!isSignedIn || !userId) {
+        setNotifications([]);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
 
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .order("created_at", { ascending: false });
 
       if (cancelled) return;
@@ -108,7 +113,7 @@ export default function NotificationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, user?.id]);
+  }, [isSignedIn, userId]);
 
   return (
     <div className="min-h-screen bg-white text-black px-5 py-8">
