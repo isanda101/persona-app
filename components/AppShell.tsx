@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { SignInButton, useAuth } from "@clerk/nextjs";
 import BottomNav from "@/components/BottomNav";
+import NotificationsBell from "@/components/NotificationsBell";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -39,16 +40,19 @@ export default function AppShell({ children }: AppShellProps) {
             <Link href="/" className="px-3 py-1 rounded-full bg-black text-white text-sm font-medium">
               Persona
             </Link>
-            {showAuthPill ? (
-              <SignInButton mode="modal">
-                <button
-                  type="button"
-                  className="px-3 py-1 rounded-full bg-black text-white text-sm font-medium"
-                >
-                  Sign in
-                </button>
-              </SignInButton>
-            ) : null}
+            <div className="flex items-center gap-2">
+              {isSignedIn ? <NotificationsBell /> : null}
+              {showAuthPill ? (
+                <SignInButton mode="modal">
+                  <button
+                    type="button"
+                    className="px-3 py-1 rounded-full bg-black text-white text-sm font-medium"
+                  >
+                    Sign in
+                  </button>
+                </SignInButton>
+              ) : null}
+            </div>
           </div>
         </header>
       ) : null}

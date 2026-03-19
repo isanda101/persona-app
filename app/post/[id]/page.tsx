@@ -13,6 +13,7 @@ import {
 } from "@/lib/engagement";
 import { clearSignedInPersonaCache } from "@/lib/localCache";
 import { normalizeComment, type PersonaComment } from "@/lib/comments";
+import { createNotification } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 import { prioritizeUploadTags, sanitizeContentTags, slugifyTag } from "@/lib/tags";
 
@@ -437,6 +438,18 @@ export default function PostDetailPage() {
       return;
     }
 
+    if (!wasLiked && user?.id && post.creator_id && post.creator_id !== user.id) {
+      void createNotification({
+        userId: post.creator_id,
+        actorId: user.id,
+        actorHandle: `@${username || "user"}`,
+        actorAvatar: currentUserAvatar,
+        type: "like",
+        postId: post.id,
+        message: `@${username || "user"} liked your post`,
+      });
+    }
+
     setLikes(!wasLiked ? { [post.id]: true } : {});
     const nextLikesCount = wasLiked
       ? Math.max(0, Number(post.likes_count ?? 0) - 1)
@@ -533,6 +546,18 @@ export default function PostDetailPage() {
       return;
     }
 
+    if (!exists && user?.id && post.creator_id && post.creator_id !== user.id) {
+      void createNotification({
+        userId: post.creator_id,
+        actorId: user.id,
+        actorHandle: `@${username || "user"}`,
+        actorAvatar: currentUserAvatar,
+        type: "collection",
+        postId: post.id,
+        message: `@${username || "user"} collected your post`,
+      });
+    }
+
     if (!isSignedIn) {
       localStorage.setItem("persona:saved", JSON.stringify(next));
     }
@@ -623,6 +648,18 @@ export default function PostDetailPage() {
       console.error("Supabase comment insert error:", error);
       setCommentsError("Could not post comment.");
       return;
+    }
+
+    if (user?.id && post.creator_id && post.creator_id !== user.id) {
+      void createNotification({
+        userId: post.creator_id,
+        actorId: user.id,
+        actorHandle: `@${username || "user"}`,
+        actorAvatar: currentUserAvatar,
+        type: "comment",
+        postId: post.id,
+        message: `@${username || "user"} commented on your post`,
+      });
     }
 
     setComments((prev) => [...prev, comment]);

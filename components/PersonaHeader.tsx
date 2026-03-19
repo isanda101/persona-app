@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import NotificationsBell from "@/components/NotificationsBell";
 
 type PersonaHeaderProps = {
   showBack?: boolean;
@@ -13,10 +14,9 @@ export default function PersonaHeader({
   className = "",
 }: PersonaHeaderProps) {
   const router = useRouter();
-  const alignmentClass = showBack ? "justify-start" : "justify-center";
 
   return (
-    <div className={`flex items-center ${alignmentClass} ${className}`.trim()}>
+    <div className={`flex items-center justify-between ${className}`.trim()}>
       <div className="flex items-center gap-3">
         {showBack ? (
           <button
@@ -32,6 +32,7 @@ export default function PersonaHeader({
           Persona
         </Link>
       </div>
+      <NotificationsBell />
     </div>
   );
 }

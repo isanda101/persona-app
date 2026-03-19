@@ -32,6 +32,7 @@ import {
   writeStoredCards,
 } from "@/lib/feedCache";
 import { clearSignedInPersonaCache } from "@/lib/localCache";
+import { createNotification } from "@/lib/notifications";
 import { supabase } from "@/lib/supabase";
 
 type Card = {
@@ -864,6 +865,18 @@ export default function PersonaFeed() {
       return;
     }
 
+    if (!exists && user?.id && card.creator_id && card.creator_id !== user.id) {
+      void createNotification({
+        userId: card.creator_id,
+        actorId: user.id,
+        actorHandle: `@${cleanHandle(user.username || user.primaryEmailAddress?.emailAddress || "user")}`,
+        actorAvatar: user.imageUrl || "",
+        type: "collection",
+        postId: card.id,
+        message: `@${cleanHandle(user.username || user.primaryEmailAddress?.emailAddress || "user")} collected your post`,
+      });
+    }
+
     if (!isSignedIn) {
       writeJSON("persona:saved", nextSaved);
     }
@@ -949,6 +962,18 @@ export default function PersonaFeed() {
       return;
     }
 
+    if (!wasLiked && user?.id && card.creator_id && card.creator_id !== user.id) {
+      void createNotification({
+        userId: card.creator_id,
+        actorId: user.id,
+        actorHandle: `@${cleanHandle(user.username || user.primaryEmailAddress?.emailAddress || "user")}`,
+        actorAvatar: user.imageUrl || "",
+        type: "like",
+        postId: card.id,
+        message: `@${cleanHandle(user.username || user.primaryEmailAddress?.emailAddress || "user")} liked your post`,
+      });
+    }
+
     setIsLiked(!wasLiked);
     const nextLikesCount = wasLiked
       ? Math.max(0, Number(card.likes_count ?? 0) - 1)
@@ -1001,6 +1026,18 @@ export default function PersonaFeed() {
     if (error) {
       console.error("Supabase like insert error:", error);
       return;
+    }
+
+    if (user?.id && card.creator_id && card.creator_id !== user.id) {
+      void createNotification({
+        userId: card.creator_id,
+        actorId: user.id,
+        actorHandle: `@${cleanHandle(user.username || user.primaryEmailAddress?.emailAddress || "user")}`,
+        actorAvatar: user.imageUrl || "",
+        type: "like",
+        postId: card.id,
+        message: `@${cleanHandle(user.username || user.primaryEmailAddress?.emailAddress || "user")} liked your post`,
+      });
     }
 
     setIsLiked(true);
