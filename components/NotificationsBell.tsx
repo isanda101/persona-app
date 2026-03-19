@@ -8,18 +8,22 @@ import { supabase } from "@/lib/supabase";
 
 export default function NotificationsBell() {
   const { isSignedIn, user } = useUser();
+  const userId = String(user?.id || "").trim();
   const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
-    if (!isSignedIn || !user?.id) return;
-
     let cancelled = false;
 
     async function loadUnreadCount() {
+      if (!isSignedIn || !userId) {
+        setUnreadCount(0);
+        return;
+      }
+
       const { count, error } = await supabase
         .from("notifications")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
+        .eq("user_id", userId)
         .eq("is_read", false);
 
       if (cancelled) return;
@@ -42,7 +46,7 @@ export default function NotificationsBell() {
     return () => {
       cancelled = true;
     };
-  }, [isSignedIn, user?.id]);
+  }, [isSignedIn, userId]);
 
   if (!isSignedIn) return null;
 
