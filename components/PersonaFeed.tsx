@@ -52,6 +52,7 @@ type Card = {
   likes_count?: number;
   comments_count?: number;
   collections_count?: number;
+  is_from_taste?: boolean;
 };
 
 type StyleDNA = {
@@ -199,8 +200,32 @@ function rankCommunityCards(cards: Card[], tastes: string[]) {
   });
 }
 
-async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
+async function fetchCommunityPostsFromSupabase(limit = 20, preferredTags: string[] = []): Promise<Card[]> {
   try {
+    const normalizedPreferredTags = Array.from(
+      new Set(preferredTags.map((tag) => String(tag || "").trim()).filter(Boolean)),
+    );
+
+    let preferredPosts: Card[] = [];
+
+    if (normalizedPreferredTags.length) {
+      const { data: tagPosts, error: tagPostsError } = await supabase
+        .from("posts")
+        .select("*")
+        .overlaps("tags", normalizedPreferredTags)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (tagPostsError) {
+        console.error("Supabase followed-tag posts fetch error:", tagPostsError);
+      } else if (Array.isArray(tagPosts)) {
+        preferredPosts = tagPosts
+          .map((item) => normalizeSupabasePost(item))
+          .filter((item): item is Card => item !== null)
+          .map((item) => ({ ...item, is_from_taste: true }));
+      }
+    }
+
     const { data, error } = await supabase
       .from("posts")
       .select("*")
@@ -209,13 +234,25 @@ async function fetchCommunityPostsFromSupabase(limit = 20): Promise<Card[]> {
 
     if (error) {
       console.error("Supabase posts fetch error:", error);
-      return [];
+      return preferredPosts;
     }
 
-    if (!Array.isArray(data)) return [];
-    return data
+    if (!Array.isArray(data)) return preferredPosts;
+
+    const fallbackPosts = data
       .map((item) => normalizeSupabasePost(item))
       .filter((item): item is Card => item !== null);
+
+    const seen = new Set<string>();
+    const merged: Card[] = [];
+
+    for (const post of [...preferredPosts, ...fallbackPosts]) {
+      if (!post.id || seen.has(post.id)) continue;
+      seen.add(post.id);
+      merged.push(post);
+    }
+
+    return merged;
   } catch (error) {
     console.error("Failed to fetch Supabase posts", error);
     return [];
@@ -712,7 +749,7 @@ export default function PersonaFeed() {
       : readStoredCards<Card>("persona:feed_cache").filter(isRealFeedCard);
     const communityPosts = Array.isArray(options?.communityPosts)
       ? options.communityPosts.filter(isRealFeedCard)
-      : (await fetchCommunityPostsFromSupabase(60)).filter(isRealFeedCard);
+      : (await fetchCommunityPostsFromSupabase(60, isSignedIn ? followed : [])).filter(isRealFeedCard);
     const rankedCommunityPosts = rankCommunityCards(communityPosts, tastes);
     const realPool = dedupeById(
       [...rankedCommunityPosts, ...uploadCards, ...cachedRealCards].filter(isRealFeedCard),
@@ -777,7 +814,7 @@ export default function PersonaFeed() {
       const savedAll = isSignedIn ? cards.filter((card) => savedIds.includes(card.id)) : readJSON<Card[]>("persona:saved", []);
       setSavedIds(savedAll.map((c) => c.id));
 
-      const communityPosts = await fetchCommunityPostsFromSupabase(20);
+      const communityPosts = await fetchCommunityPostsFromSupabase(20, isSignedIn ? followedTags : []);
 
       const uploads = isSignedIn ? [] : readStoredCards<Card>("persona:uploads");
       const cached = isSignedIn ? [] : readStoredCards<Card>("persona:feed_cache");
@@ -813,7 +850,7 @@ export default function PersonaFeed() {
     setIsLoading(true);
     const savedAll = isSignedIn ? cards.filter((card) => savedIds.includes(card.id)) : readJSON<Card[]>("persona:saved", []);
     setSavedIds(savedAll.map((c) => c.id));
-    const communityPosts = await fetchCommunityPostsFromSupabase(20);
+    const communityPosts = await fetchCommunityPostsFromSupabase(20, isSignedIn ? followedTags : []);
 
     try {
       await fetchBatch(0, "replace", savedAll, { communityPosts });
@@ -1384,6 +1421,9 @@ export default function PersonaFeed() {
                     )}
                   </div>
                   <div className="mt-1 text-xs text-gray-500">{whyThis}</div>
+                  {active.is_from_taste ? (
+                    <div className="mt-1 text-[11px] font-medium text-gray-700">From your taste</div>
+                  ) : null}
                   {exploreNextTags.length ? (
                     <>
                       <div
